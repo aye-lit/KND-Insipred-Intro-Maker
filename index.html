@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mission Intro Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ui-bg: #111; --ui-panel: #181818; --ui-line: #333;
+    --ui-text: #eee; --ui-muted: #999; --accent: #00ff66;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: #000; color: #fff; overflow: hidden; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+
+  .toolbar {
+    position: fixed; z-index: 10; left: 50%; transform: translateX(-50%);
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    display: flex; gap: 8px; transition: opacity .3s; flex-wrap: nowrap;
+  }
+  .btn {
+    font: 600 15px/1 "Inter", system-ui, sans-serif; white-space: nowrap;
+    background: var(--ui-bg); color: var(--ui-text);
+    border: 1px solid var(--ui-line); border-radius: 999px;
+    padding: 11px 18px; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+  .btn[hidden] { display: none; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hidden-ui .toolbar, .hidden-ui .panel { opacity: 0; pointer-events: none; }
+
+  .status {
+    position: fixed; z-index: 11; left: 50%; transform: translateX(-50%);
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    background: rgba(17,17,17,.92); color: var(--ui-text);
+    border: 1px solid var(--ui-line); border-radius: 999px;
+    padding: 8px 16px; font-size: 14px; max-width: 92vw; text-align: center;
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+  }
+  .status.show { opacity: 1; }
+  .status .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ff3b3b; margin-right: 7px; vertical-align: 0; }
+
+  .panel {
+    position: fixed; z-index: 20; top: 0; right: 0; bottom: 0; width: min(420px, 100vw);
+    background: var(--ui-panel); color: var(--ui-text); border-left: 1px solid var(--ui-line);
+    padding: calc(18px + env(safe-area-inset-top, 0px)) 20px calc(90px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto; transform: translateX(105%); transition: transform .3s ease, opacity .3s;
+  }
+  .panel.open { transform: none; }
+  .panel header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .panel h2 { font: 600 18px "Inter", sans-serif; margin: 0; }
+  .panel p.note { color: var(--ui-muted); font-size: 13px; margin: 4px 0 14px; line-height: 1.45; }
+  fieldset { border: 1px solid var(--ui-line); border-radius: 12px; padding: 12px 14px 14px; margin: 0 0 14px; }
+  legend { padding: 0 6px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  label { display: block; font-size: 13px; color: var(--ui-muted); margin: 10px 0 5px; }
+  input[type=text], textarea, select {
+    width: 100%; background: #0c0c0c; color: var(--ui-text);
+    border: 1px solid var(--ui-line); border-radius: 8px; padding: 9px 10px; font: 15px "Inter", sans-serif;
+  }
+  textarea { min-height: 120px; resize: vertical; line-height: 1.4; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row > * { flex: 1; }
+  .row[hidden] { display: none; }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--ui-text); font-size: 14px; margin-top: 10px; }
+  input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=color] { width: 44px; height: 36px; border: 1px solid var(--ui-line); background: none; border-radius: 8px; padding: 2px; flex: 0 0 44px; }
+  .preview {
+    position: sticky; top: calc(-18px - env(safe-area-inset-top, 0px)); z-index: 2;
+    background: var(--ui-panel); margin: 0 -20px 14px; padding: 10px 20px 12px;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  #mini { display: block; width: 100%; max-height: 34vh; object-fit: contain; background: #000; border: 1px solid var(--ui-line); border-radius: 8px; }
+  .tabs { display: flex; gap: 6px; margin-top: 8px; }
+  .tabs button {
+    flex: 1; font: 600 13px "Inter", sans-serif; padding: 8px 6px; border-radius: 8px; cursor: pointer;
+    background: #0c0c0c; color: var(--ui-muted); border: 1px solid var(--ui-line);
+  }
+  .tabs button[aria-pressed="true"] { color: #000; background: var(--accent); border-color: var(--accent); }
+  .preview .off { color: var(--ui-muted); font-size: 12px; margin-top: 6px; min-height: 1em; }
+  .mcolors { display: grid; gap: 8px; margin-bottom: 8px; }
+  .mrow input[type=color] { width: 36px; flex: none; }
+  .mrow { display: grid; grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1.5fr) 2.2em 26px; align-items: center; gap: 8px;
+    background: #0c0c0c; border: 1px solid var(--ui-line); border-radius: 8px; padding: 4px 10px 4px 4px; font-size: 14px; }
+  .mrow .nm { min-width: 0; padding: 6px 8px; font-size: 14px; }
+  .mrow .del { background: none; border: none; color: var(--ui-muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 4px; border-radius: 6px; }
+  .mrow .del:focus-visible { outline: 2px solid var(--accent); }
+  .mrow output { text-align: right; font-variant-numeric: tabular-nums; color: var(--ui-muted); }
+  /* while editing: big preview on top, settings underneath */
+  :root { --pv-h: 58vh; }
+  @media (max-width: 699px) { :root { --pv-h: 46vh; } }
+  body.editing #mini { display: none; }
+  body.editing #stage { bottom: auto; height: calc(var(--pv-h) - 64px); }
+  body.editing .panel {
+    top: var(--pv-h); width: 100vw; left: 0; right: 0;
+    border-left: none; border-top: 1px solid var(--ui-line);
+    padding-top: 0; transform: none;
+  }
+  body.editing .preview { top: 0; padding-top: 12px; }
+  body.editing .panel > * { max-width: 1100px; margin-left: auto; margin-right: auto; }
+  body.editing .panel > .preview { margin-left: -20px; margin-right: -20px; max-width: none; padding-left: max(20px, calc((100vw - 1100px) / 2)); padding-right: max(20px, calc((100vw - 1100px) / 2)); }
+  body.editing .panel header { padding-top: 12px; }
+  @media (min-width: 900px) {
+    body.editing .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; align-items: start; }
+  }
+  body.editing .toolbar { top: calc(var(--pv-h) - 56px); bottom: auto; }
+  .preview .off:empty { display: none; }
+  label.hasval { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  label .val { color: var(--ui-text); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .file { font-size: 13px; color: var(--ui-muted); margin-top: 6px; }
+  .reset { background: none; border: none; color: var(--ui-muted); text-decoration: underline; cursor: pointer; font: 13px "Inter", sans-serif; padding: 0; }
+  @media (prefers-reduced-motion: reduce) { .panel, .toolbar, .status { transition: none; } }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Intro preview"></canvas>
+<div class="status" id="status" role="status" aria-live="polite"></div>
+
+<div class="toolbar">
+  <button class="btn primary" id="playBtn" type="button">▶ Play</button>
+  <button class="btn" id="saveBtn" type="button" hidden>⬇ Save MP4</button>
+  <button class="btn" id="editBtn" type="button">Edit</button>
+</div>
+<aside class="panel ui" id="panel" aria-label="Template settings">
+  <header>
+    <h2>Edit intro</h2>
+    <button class="btn" id="closeBtn" type="button">Done</button>
+  </header>
+  <div class="preview">
+    <canvas id="mini" aria-label="Live preview of your changes"></canvas>
+    <div class="tabs" role="group" aria-label="Preview part">
+      <button type="button" data-pv="1" aria-pressed="true">1 · Title</button>
+      <button type="button" data-pv="2" aria-pressed="false">2 · Briefing</button>
+      <button type="button" data-pv="3" aria-pressed="false">3 · Model</button>
+    </div>
+    <div class="off" id="pvNote"></div>
+  </div>
+  <p class="note">The screen updates as you type. Press Play to watch the whole thing, or Save MP4 to record it for Premiere.</p>
+
+  <div class="fields">
+  <fieldset>
+    <legend>Video size</legend>
+    <select id="f-format" data-k="format" aria-label="Video size">
+      <option value="land">Landscape 1920 × 1080</option>
+      <option value="port">Portrait 1080 × 1920</option>
+    </select>
+  </fieldset>
+
+  <fieldset data-part="1">
+    <legend><input type="checkbox" data-k="s1on" aria-label="Include title card"> 1 · Title card</legend>
+    <label for="f-top">Top line</label>
+    <input id="f-top" type="text" data-k="top">
+    <label for="f-label">Label</label>
+    <input id="f-label" type="text" data-k="label">
+    <label for="f-title">Title</label>
+    <input id="f-title" type="text" data-k="title">
+    <label class="check"><input type="checkbox" data-k="dots"> Add dots between letters (g.u.m…)</label>
+  </fieldset>
+
+  <fieldset data-part="2">
+    <legend><input type="checkbox" data-k="s2on" aria-label="Include briefing"> 2 · Briefing</legend>
+    <label for="f-brief">Text — each line types on its own row</label>
+    <textarea id="f-brief" data-k="brief"></textarea>
+    <label class="check"><input type="checkbox" data-k="voice"> A voice reads the briefing</label>
+    <label for="f-vtype">Voice</label>
+    <select id="f-vtype" data-k="vtype">
+      <option value="natural">Natural voice (your device's voice, preview only)</option>
+      <option value="computer">Computer voice (records into the MP4)</option>
+      <option value="file">My own recording (records into the MP4)</option>
+    </select>
+    <div id="vfileRow" hidden>
+      <label for="f-vfile">Voice-over file (.mp3, .wav, .m4a)</label>
+      <input id="f-vfile" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg">
+    </div>
+    <div class="row">
+      <button class="btn" id="testVoice" type="button" style="flex:0 0 auto">▶ Test voice</button>
+      <div class="file" id="voiceNote" role="status" style="margin:0">Tap Test voice to hear it.</div>
+    </div>
+  </fieldset>
+
+  <fieldset data-part="3">
+    <legend><input type="checkbox" data-k="s3on" aria-label="Include model reveal"> 3 · Model reveal</legend>
+    <label for="f-head">Heading — each line on its own row</label>
+    <textarea id="f-head" data-k="head" style="min-height:80px"></textarea>
+    <label class="check"><input type="checkbox" data-k="statsOn"> Show stat readouts</label>
+    <label for="f-layout">Meter layout</label>
+    <select id="f-layout" data-k="layout">
+      <option value="column">Column of bars</option>
+      <option value="group">Group of 4 + big power meter</option>
+    </select>
+    <div class="row">
+      <div><label for="f-pwx">Big meter ← →</label><input id="f-pwx" type="range" min="-50" max="85" step="1" data-k="pwX"></div>
+      <div><label for="f-pwy">Big meter ↑ ↓</label><input id="f-pwy" type="range" min="-50" max="40" step="1" data-k="pwY"></div>
+    </div>
+    <div class="row">
+      <div><label for="f-grx">Group ← →</label><input id="f-grx" type="range" min="-70" max="30" step="1" data-k="grX"></div>
+      <div><label for="f-gry">Group ↑ ↓</label><input id="f-gry" type="range" min="-50" max="40" step="1" data-k="grY"></div>
+    </div>
+    <button class="reset" id="resetPos" type="button">Reset meter positions</button>
+    <label class="check"><input type="checkbox" data-k="zones"> Split the power meter into 3 sections</label>
+    <div class="row" id="zoneRow">
+      <div style="flex:0 0 auto"><label for="f-z1">Low</label><input id="f-z1" type="color" data-k="z1"></div>
+      <div style="flex:0 0 auto"><label for="f-z2">Middle</label><input id="f-z2" type="color" data-k="z2"></div>
+      <div style="flex:0 0 auto"><label for="f-z3">High</label><input id="f-z3" type="color" data-k="z3"></div>
+      <div></div>
+    </div>
+    <label>Meters — name one "power" to put it on the big meter (up to 6)</label>
+    <div class="mcolors" id="meterColors"></div>
+    <div class="row" style="justify-content:space-between">
+      <button class="btn" id="addMeter" type="button" style="flex:0 0 auto">+ Add meter</button>
+      <button class="reset" id="matchColors" type="button" style="flex:0 0 auto">Match all to the line color</button>
+    </div>
+    <label for="f-file">Model file (.stl, .obj or .glb)</label>
+    <input id="f-file" type="file" accept=".stl,.obj,.glb">
+    <div class="file" id="fileName">Using placeholder cube</div>
+    <div class="row">
+      <div>
+        <label for="f-view">Starting view</label>
+        <select id="f-view" data-k="view">
+          <option value="front">Front</option>
+          <option value="back">Back</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+          <option value="top">Top</option>
+          <option value="bottom">Bottom</option>
+        </select>
+      </div>
+      <div>
+        <label for="f-tilt">Camera tilt</label>
+        <input id="f-tilt" type="range" min="0" max="60" step="1" data-k="tilt">
+      </div>
+    </div>
+    <label for="f-mscale">Model size</label>
+    <input id="f-mscale" type="range" min="30" max="200" step="5" data-k="mscale">
+    <label for="f-bg">Background</label>
+    <select id="f-bg" data-k="bg">
+      <option value="grid">Gray grid</option>
+      <option value="black">Plain black</option>
+      <option value="key">Green screen (for keying)</option>
+    </select>
+    <div class="row">
+      <div>
+        <label for="f-spin">Full turn time</label>
+        <input id="f-spin" type="range" min="3" max="15" step="0.5" data-k="turn">
+      </div>
+      <div style="flex:0 0 auto">
+        <label for="f-color">Line color</label>
+        <input id="f-color" type="color" data-k="color">
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Timing</legend>
+    <label for="f-speed">Typing speed</label>
+    <input id="f-speed" type="range" min="0.4" max="2.5" step="0.1" data-k="speed">
+    <label for="f-hold">Pause between scenes</label>
+    <input id="f-hold" type="range" min="0.5" max="5" step="0.1" data-k="hold">
+  </fieldset>
+
+  <button class="reset" id="resetBtn" type="button">Reset to example text</button>
+  </div>
+</aside>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const FONT = '"Exo 2", "Trebuchet MS", Arial, sans-serif';
+
+  // ---------- settings ----------
+  const DEFAULTS = {
+    format: 'land',
+    s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
+    s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
+    s3on: true, head: 'model\nfile -', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural',
+    sfx: true, sfxVol: 0.7, musicVol: 0.6
+  };
+  let S = { ...DEFAULTS };
+  try { Object.assign(S, JSON.parse(localStorage.getItem('intro-template') || '{}')); } catch (e) {}
+  if (typeof S.statsOn !== 'boolean') { S.statsOn = DEFAULTS.statsOn; S.stats = DEFAULTS.stats; }
+  for (const k of ['pwX','pwY','grX','grY']) if (typeof S[k] !== 'number') S[k] = 0;
+  if (!Array.isArray(S.meterColors)) S.meterColors = [];
+  if (!S.layout) { S.layout = DEFAULTS.layout; if (S.stats === 'power: 85\nrange: 60\nstability: 72\naccuracy: 90') S.stats = DEFAULTS.stats; }
+  if (typeof S.mscale !== 'number') S.mscale = 100;
+  if (typeof S.voice !== 'boolean') S.voice = true;
+  if (!S.vtype) S.vtype = 'natural';
+  if (typeof S.zones !== 'boolean') { S.zones = DEFAULTS.zones; S.z1 = DEFAULTS.z1; S.z2 = DEFAULTS.z2; S.z3 = DEFAULTS.z3; }
+  if (!S.view) S.view = 'front';
+  if (typeof S.tilt !== 'number') S.tilt = 20;
+  if (typeof S.turn !== 'number') S.turn = DEFAULTS.turn;
+  delete S.spin;
+  if (S.color === '#9a9a9a') S.color = DEFAULTS.color;
+  S.sfx = true; S.sfxVol = 0.7; S.musicVol = 0.6; delete S.keys;
+  const save = () => { try { localStorage.setItem('intro-template', JSON.stringify(S)); } catch (e) {} };
+
+  document.querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    const FMT = {
+      speed: v => (+v).toFixed(1) + '×', hold: v => (+v).toFixed(1) + ' s', turn: v => (+v).toFixed(1) + ' s',
+      tilt: v => v + '°', mscale: v => v + '%',
+      pwX: v => (v > 0 ? '+' : '') + v, pwY: v => (v > 0 ? '+' : '') + v, grX: v => (v > 0 ? '+' : '') + v, grY: v => (v > 0 ? '+' : '') + v
+    };
+    let val = null;
+    if (el.type === 'range') {
+      const lab = document.querySelector('label[for="' + el.id + '"]');
+      if (lab) { lab.classList.add('hasval'); val = document.createElement('span'); val.className = 'val'; lab.appendChild(val); }
+    }
+    const show = () => { if (val) val.textContent = (FMT[k] || (v => v))(el.value); };
+    el.addEventListener('input', show);
+    const set = () => { if (el.type === 'checkbox') el.checked = !!S[k]; else el.value = S[k]; show(); };
+    set(); el._set = set;
+    el.addEventListener('input', () => {
+      S[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? parseFloat(el.value) : el.value;
+      save(); onSettingsChange(k);
+    });
+  });
+  $('resetPos').addEventListener('click', () => {
+    for (const k of ['pwX','pwY','grX','grY']) S[k] = 0;
+    save(); document.querySelectorAll('[data-k]').forEach(el => el._set());
+  });
+  // meters live as a list; S.stats keeps them as "name: value" lines
+  const getMeters = () => parseStats().map(st => ({ name: st.name, v: Math.round(st.v) }));
+  function setMeters(list, rebuild) {
+    S.stats = list.map(m => (m.name || 'meter') + ': ' + m.v).join('\n'); save();
+    if (rebuild) buildColorPickers();
+    if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
+  }
+  function buildColorPickers() {
+    const box = $('meterColors'); box.innerHTML = '';
+    const list = getMeters();
+    $('addMeter').disabled = list.length >= 6;
+    if (!list.length) { box.textContent = 'No meters yet — tap + Add meter.'; return; }
+    list.forEach((m, i) => {
+      const st = { i };
+      const row = document.createElement('div'); row.className = 'mrow';
+      const col = document.createElement('input'); col.type = 'color';
+      col.value = colorOf(st); col.setAttribute('aria-label', 'Color for ' + m.name);
+      col.addEventListener('input', () => { S.meterColors[i] = col.value; save(); });
+      const nm = document.createElement('input'); nm.type = 'text'; nm.className = 'nm'; nm.value = m.name;
+      nm.setAttribute('aria-label', 'Meter name');
+      nm.addEventListener('input', () => { const l = getMeters(); l[i].name = nm.value.replace(/[:\n]/g, '').trim().toLowerCase(); setMeters(l, false); });
+      const sl = document.createElement('input'); sl.type = 'range'; sl.min = 0; sl.max = 100; sl.step = 1;
+      sl.value = m.v; sl.setAttribute('aria-label', 'Level for ' + m.name);
+      const out = document.createElement('output'); out.textContent = m.v;
+      sl.addEventListener('input', () => { out.textContent = sl.value; const l = getMeters(); l[i].v = +sl.value; setMeters(l, false); });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×';
+      del.setAttribute('aria-label', 'Remove ' + m.name);
+      del.addEventListener('click', () => {
+        const l = getMeters(); l.splice(i, 1);
+        S.meterColors.splice(i, 1);
+        setMeters(l, true);
+      });
+      row.append(col, nm, sl, out, del); box.append(row);
+    });
+  }
+  $('addMeter').addEventListener('click', () => {
+    const l = getMeters(); if (l.length >= 6) return;
+    l.push({ name: 'meter ' + (l.length + 1), v: 50 }); setMeters(l, true);
+    const rows = document.querySelectorAll('.mrow .nm'); rows[rows.length - 1].focus(); rows[rows.length - 1].select();
+  });
+  $('matchColors').addEventListener('click', () => { S.meterColors = []; save(); buildColorPickers(); });
+  $('resetBtn').addEventListener('click', () => {
+    S = { ...DEFAULTS, meterColors: [] }; save(); buildColorPickers(); applyView();
+    document.querySelectorAll('[data-k]').forEach(el => el._set());
+    onSettingsChange('format');
+  });
+
+  const titleText = () => S.dots ? S.title.replace(/\s+/g, '').split('').join('.') + '.' : S.title;
+  const splitLines = txt => txt.split('\n').map(s => s.trim()).filter(Boolean);
+
+  // ---------- canvas + 3D ----------
+  const canvas = $('stage');
+  const ctx = canvas.getContext('2d');
+  let W = 1920, H = 1080;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, 16 / 9, 0.1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(3, 4, 5); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.4); rim.position.set(-4, -2, -3); scene.add(rim);
+  const model = new THREE.Group(); scene.add(model);
+  const spinner = new THREE.Group(); model.add(spinner);
+  const orient = new THREE.Group(); spinner.add(orient);
+  const VIEWS = {
+    front: [0, 0], back: [0, Math.PI], left: [0, Math.PI / 2],
+    right: [0, -Math.PI / 2], top: [Math.PI / 2, 0], bottom: [-Math.PI / 2, 0]
+  };
+  function applyView() {
+    const [x, y] = VIEWS[S.view] || VIEWS.front;
+    orient.rotation.set(x, y, 0);
+    spinner.rotation.x = THREE.MathUtils.degToRad(S.tilt);
+  }
+  applyView();
+  // wireframe look: glowing lines over a dark fill that hides the back lines
+  const material = new THREE.MeshBasicMaterial({ color: S.color, wireframe: true, transparent: true, opacity: 0.9 });
+  const fillMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+
+  function setSize() {
+    [W, H] = S.format === 'port' ? [1080, 1920] : [1920, 1080];
+    canvas.width = W; canvas.height = H;
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H;
+    const z = W < H ? 11 : 7;
+    camera.position.set(0, 0, z);
+    camera.updateProjectionMatrix();
+    const visH = 2 * z * Math.tan(THREE.MathUtils.degToRad(17.5));
+    model.position.y = visH * (W < H ? 0.14 : 0.1);
+  }
+
+  function setModel(obj, keepMaterials) {
+    orient.clear();
+    const meshes = []; obj.traverse(o => { if (o.isMesh) meshes.push(o); });
+    meshes.forEach(m => {
+      m.material = fillMat;
+      const wire = new THREE.Mesh(m.geometry, material);
+      m.add(wire);
+    });
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+    obj.position.sub(center);
+    const holder = new THREE.Group(); holder.add(obj);
+    holder.scale.setScalar(2.2 / Math.max(size.x, size.y, size.z, 1e-6));
+    orient.add(holder);
+  }
+  (function cube() {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.8, 6, 6, 6)));
+    setModel(g, false);
+  })();
+
+  $('f-file').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+    $('fileName').textContent = 'Loading ' + file.name + '…';
+    reader.onerror = () => { $('fileName').textContent = 'Could not read that file.'; };
+    reader.onload = () => {
+      const ok = () => { $('fileName').textContent = 'Using ' + file.name + ' (re-upload after reloading the page)'; };
+      const fail = () => { $('fileName').textContent = 'That file could not be loaded — try exporting it again.'; };
+      try {
+        if (ext === 'stl') {
+          const geo = new THREE.STLLoader().parse(reader.result);
+          geo.computeVertexNormals();
+          const mesh = new THREE.Mesh(geo);
+          mesh.rotation.x = -Math.PI / 2; // printer files are usually Z-up
+          const g = new THREE.Group(); g.add(mesh);
+          setModel(g, false); ok();
+        } else if (ext === 'obj') {
+          setModel(new THREE.OBJLoader().parse(reader.result), false); ok();
+        } else if (ext === 'glb') {
+          new THREE.GLTFLoader().parse(reader.result, '', gltf => { setModel(gltf.scene, true); ok(); }, fail);
+        } else fail();
+      } catch (err) { fail(); }
+    };
+    ext === 'obj' ? reader.readAsText(file) : reader.readAsArrayBuffer(file);
+  });
+
+  // ---------- timeline ----------
+  let TL = null;
+  function buildTimeline() {
+    const segs = []; let t = 0; const sp = S.speed, hold = S.hold * 1000;
+    const add = (n, lines, delay, gap) => {
+      const seg = { n, start: t, lines: [] }; let c = t + delay;
+      for (const { text, block } of lines) {
+        const line = { text: text.toLowerCase(), block, t0: c, times: [] };
+        for (const ch of line.text) { line.times.push(c); c += (ch === '.' ? 110 : 75) / sp; }
+        seg.lines.push(line); c += gap / sp;
+      }
+      seg.typedEnd = c; return seg;
+    };
+    if (S.s1on) {
+      const lines = [];
+      if (S.top.trim()) lines.push({ text: S.top.trim(), block: 0 });
+      if (S.label.trim()) lines.push({ text: S.label.trim(), block: 1 });
+      if (S.title.trim()) lines.push({ text: titleText(), block: 1 });
+      const seg = add(1, lines, 500, 350); seg.end = seg.typedEnd + hold; segs.push(seg); t = seg.end;
+    }
+    if (S.s2on) {
+      const clips = S.voice && S.vtype === 'computer' ? voiceClips() : null;
+      let seg;
+      if (S.voice && S.vtype === 'natural' && window.speechSynthesis) {
+        // natural voice reads the whole briefing in one go; each line types at the pace it's spoken
+        seg = { n: 2, start: t, lines: [] }; let c = t + 400;
+        splitLines(S.brief).forEach((text, i) => {
+          const tx = text.toLowerCase();
+          const words = lineSpeech(text).split(/\s+/).filter(Boolean).length;
+          const pause = /[-,.!?:;]\s*$/.test(text) ? 260 : 40;
+          const dur = Math.max(words * 330, tx.length * 30);
+          const line = { text: tx, block: 0, t0: c, times: [], say: i === 0 ? briefSpeech() : null };
+          for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
+          seg.lines.push(line); c += dur + pause;
+        });
+        seg.typedEnd = c;
+      } else if (clips) {
+        // each line types out exactly as long as its spoken clip lasts
+        seg = { n: 2, start: t, lines: [] }; let c = t + 400;
+        splitLines(S.brief).forEach((text, i) => {
+          const tx = text.toLowerCase(), clip = clips[i];
+          const dur = clip ? Math.max(clip.duration * 1000, tx.length * 30) : tx.length * 75 / sp;
+          const line = { text: tx, block: 0, t0: c, times: [], clip };
+          for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
+          seg.lines.push(line); c += dur + 250;
+        });
+        seg.typedEnd = c;
+      } else seg = add(2, splitLines(S.brief).map(text => ({ text, block: 0 })), 400, 200);
+      seg.end = seg.typedEnd + hold;
+      if (S.voice && S.vtype === 'file' && voiceFileBuf && seg.lines.length) {
+        seg.fileAt = seg.lines[0].t0;
+        seg.end = Math.max(seg.end, seg.fileAt + voiceFileBuf.duration * 1000 + 700);
+      }
+      segs.push(seg); t = seg.end;
+    }
+    if (S.s3on) {
+      const lines = splitLines(S.head).map(text => ({ text, block: 0 }));
+      if (S.title.trim()) lines.push({ text: titleText(), block: 0 });
+      const seg = add(3, lines, 500, 250);
+      seg.modelStart = seg.typedEnd;
+      seg.end = seg.modelStart + Math.max(S.turn * 1000, 4400) + 800;
+      segs.push(seg); t = seg.end;
+    }
+    return { segs, total: t };
+  }
+
+  // ---------- drawing ----------
+  const font = size => `600 ${size}px ${FONT}`;
+  function fitSize(lines, base, maxW, maxH, gaps = 0) {
+    let size = base;
+    ctx.font = font(100);
+    const widest = Math.max(1, ...lines.map(l => ctx.measureText(l.text).width)) / 100;
+    size = Math.min(size, maxW / widest);
+    size = Math.min(size, maxH / (lines.length * 1.25 + gaps));
+    return size;
+  }
+  function drawLines(lines, t, layout) {
+    const { size, x, y, align } = layout;
+    ctx.font = font(size);
+    ctx.fillStyle = '#fff';
+    ctx.textBaseline = 'alphabetic';
+    const lh = size * 1.25;
+    let cursorLine = null;
+    lines.forEach(l => { if (t >= l.t0) cursorLine = l; });
+    const widest = Math.max(...lines.map(l => ctx.measureText(l.text).width));
+    let by = y, lastBlock = lines.length ? lines[0].block : 0;
+    for (const l of lines) {
+      if (l.block !== lastBlock) { by += size * 1.1; lastBlock = l.block; }
+      const baseline = by + size * 0.95;
+      const fullW = ctx.measureText(l.text).width;
+      const x0 = align === 'center' ? (W - fullW) / 2 : x ?? (W - widest) / 2;
+      let n = 0; for (const tt of l.times) if (tt <= t) n++;
+      const shown = l.text.slice(0, n);
+      if (shown) ctx.fillText(shown, x0, baseline);
+      if (l === cursorLine && (reduce || Math.floor(t / 450) % 2 === 0 || n < l.text.length)) {
+        const cx = x0 + ctx.measureText(shown).width + (shown ? size * 0.12 : 0);
+        ctx.fillRect(cx, baseline + size * 0.08 - size * 0.78, size * 0.42, size * 0.78);
+      }
+      by += lh;
+    }
+  }
+  const blockHeight = (lines, size) => {
+    const blocks = new Set(lines.map(l => l.block)).size;
+    return lines.length * size * 1.25 + Math.max(0, blocks - 1) * size * 1.1;
+  };
+  const colorOf = st => (S.meterColors && S.meterColors[st.i]) || S.color;
+  function sweep(p, v) {
+    if (reduce) return v;
+    const up = 0.42, hold = 0.12;
+    if (p < up) { const q = p / up; return 100 * (1 - Math.pow(1 - q, 3)); }
+    if (p < up + hold) return 100;
+    const q = (p - up - hold) / (1 - up - hold);
+    const e = q < 0.5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2;
+    return 100 + (v - 100) * e;
+  }
+  function parseStats() {
+    return S.stats.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 6).map((l, i) => {
+      const m = l.match(/^(.*?)[\s:=-]+(\d+(?:\.\d+)?)\s*%?$/);
+      const name = (m ? m[1] : l).trim().toLowerCase();
+      const v = m ? Math.max(0, Math.min(100, parseFloat(m[2]))) : 100;
+      return { name, v, i };
+    });
+  }
+  function drawStats(t, seg) {
+    const stats = parseStats(); if (!stats.length) return;
+    if (S.layout === 'group') return drawGroup(t, seg, stats);
+    const port = H > W;
+    const x = port ? W * 0.1 : W * 0.7, w = port ? W * 0.8 : W * 0.23;
+    const rowH = port ? H * 0.045 : H * 0.1;
+    const top = port ? H * 0.74 - rowH * stats.length : (H * 0.4 - rowH * stats.length / 2);
+    const fs = rowH * 0.32, barH = rowH * 0.22;
+    const fillDur = Math.min(S.turn * 800, 3000);
+    ctx.save();
+    stats.forEach((st, i) => {
+      const t0 = seg.modelStart + 300 + i * 250;
+      if (t < t0) return;
+      const a = Math.min((t - t0) / 250, 1);
+      const p = Math.min((t - t0) / fillDur, 1);
+      const val = sweep(p, st.v);
+      const y = top + i * rowH;
+      ctx.globalAlpha = a;
+      ctx.font = font(fs); ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#ddd'; ctx.textAlign = 'left';
+      ctx.fillText(st.name, x, y + fs);
+      ctx.textAlign = 'right'; ctx.fillStyle = colorOf(st);
+      ctx.fillText(Math.round(val) + '%', x + w, y + fs);
+      const by = y + fs * 1.45;
+      ctx.lineWidth = Math.max(2, barH * 0.14);
+      ctx.strokeStyle = 'rgba(220,220,220,.6)';
+      ctx.strokeRect(x, by, w, barH);
+      const pad = ctx.lineWidth * 1.5;
+      ctx.fillStyle = colorOf(st);
+      ctx.fillRect(x + pad, by + pad, Math.max(0, (w - pad * 2) * val / 100), barH - pad * 2);
+    });
+    ctx.restore();
+  }
+
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function drawGroup(t, seg, stats) {
+    const port = H > W;
+    const fillDur = Math.min(S.turn * 800, 3000);
+    const prog = (i) => {
+      const t0 = seg.modelStart + 300 + i * 250;
+      if (t < t0) return null;
+      const p = Math.min((t - t0) / fillDur, 1);
+      return { a: Math.min((t - t0) / 250, 1), p };
+    };
+    const pi = stats.findIndex(st => st.name === 'power');
+    const power = pi >= 0 ? stats[pi] : null;
+    const group = stats.filter((_, i) => i !== pi).slice(0, 4);
+    ctx.save();
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center';
+
+    // big power meter (tall bar with a scale)
+    if (power) {
+      const g = prog(0);
+      if (g) {
+        const mw = port ? W * 0.09 : H * 0.085, mh = port ? H * 0.16 : H * 0.42;
+        const cx = (port ? W * 0.2 : W * 0.15) + W * S.pwX / 100, x = cx - mw / 2;
+        const top = (port ? H * 0.58 : H * 0.16) + H * S.pwY / 100;
+        ctx.globalAlpha = g.a;
+        const lw = Math.max(3, mw * 0.07);
+        ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(220,220,220,.6)';
+        rrect(x, top, mw, mh, mw * 0.18); ctx.stroke();
+        const val = sweep(g.p, power.v), pad = lw * 1.8;
+        const fh = (mh - pad * 2) * val / 100;
+        const innerH = mh - pad * 2, fx = x + pad, fw = mw - pad * 2, base = top + mh - pad;
+        const zoneCol = v => v < 100 / 3 ? S.z1 : v < 200 / 3 ? S.z2 : S.z3;
+        if (fh > 1) {
+          if (!S.zones) { ctx.fillStyle = colorOf(power); rrect(fx, base - fh, fw, fh, Math.min(mw * 0.12, fh / 2)); ctx.fill(); }
+          else {
+            ctx.save(); rrect(fx, base - fh, fw, fh, Math.min(mw * 0.12, fh / 2)); ctx.clip();
+            [S.z1, S.z2, S.z3].forEach((c, z) => {
+              const y0 = base - innerH * (z + 1) / 3, y1 = base - innerH * z / 3;
+              ctx.fillStyle = c; ctx.fillRect(fx, y0, fw, y1 - y0);
+            });
+            ctx.restore();
+          }
+        }
+        if (S.zones) { // section dividers
+          ctx.save(); ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(2, mw * 0.04);
+          for (const z of [1, 2]) { const y = base - innerH * z / 3; ctx.beginPath(); ctx.moveTo(fx, y); ctx.lineTo(fx + fw, y); ctx.stroke(); }
+          ctx.restore();
+        }
+        // scale ticks on the left side
+        ctx.lineWidth = Math.max(2, mw * 0.03); ctx.strokeStyle = 'rgba(220,220,220,.6)';
+        const inner = mh - pad * 2;
+        for (let k = 0; k <= 10; k++) {
+          const ty = top + pad + inner * (1 - k / 10);
+          const len = mw * (k % 5 ? 0.18 : 0.32);
+          ctx.beginPath(); ctx.moveTo(x - mw * 0.12, ty); ctx.lineTo(x - mw * 0.12 - len, ty); ctx.stroke();
+        }
+        ctx.fillStyle = S.zones ? zoneCol(val) : colorOf(power); ctx.font = font(mw * 0.42);
+        ctx.fillText(Math.round(val) + '%', cx, top - mw * 0.3);
+        ctx.fillStyle = '#ddd'; ctx.font = font(mw * 0.3);
+        ctx.fillText(power.name, cx, top + mh + mw * 0.45);
+      }
+    }
+
+    // group of 4 side-by-side bars
+    if (group.length) {
+      const x0 = (port ? W * 0.5 : W * 0.66) + W * S.grX / 100, gw = port ? W * 0.44 : W * 0.29;
+      const top = (port ? H * 0.58 : H * 0.2) + H * S.grY / 100, bh = port ? H * 0.14 : H * 0.34;
+      const slot = gw / group.length, bw = slot * 0.5;
+      const fs = Math.min(slot * 0.22, bh * 0.1);
+      group.forEach((st, i) => {
+        const g = prog(i + (power ? 1 : 0)); if (!g) return;
+        const cx = x0 + slot * (i + 0.5), x = cx - bw / 2;
+        ctx.globalAlpha = g.a;
+        const lw = Math.max(2, bw * 0.08);
+        ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(220,220,220,.6)';
+        rrect(x, top, bw, bh, bw * 0.25); ctx.stroke();
+        const val = sweep(g.p, st.v), pad = lw * 1.6;
+        const fh = (bh - pad * 2) * val / 100;
+        if (fh > 1) {
+          ctx.fillStyle = colorOf(st);
+          rrect(x + pad, top + bh - pad - fh, bw - pad * 2, fh, Math.min(bw * 0.18, fh / 2)); ctx.fill();
+        }
+        ctx.font = font(fs); ctx.fillStyle = colorOf(st);
+        ctx.fillText(Math.round(val), cx, top - fs * 0.5);
+        ctx.fillStyle = '#ddd';
+        ctx.fillText(st.name.length > 9 ? st.name.slice(0, 8) + '.' : st.name, cx, top + bh + fs * 1.3);
+      });
+    }
+    ctx.restore();
+  }
+
+  function drawGrid(alpha) {
+    const step = Math.round(Math.min(W, H) / 27);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = 'rgba(170, 170, 170, .55)';
+    ctx.lineWidth = Math.max(2, Math.round(step / 18));
+    ctx.beginPath();
+    for (let x = (W / 2) % step; x <= W; x += step) { ctx.moveTo(Math.round(x) + .5, 0); ctx.lineTo(Math.round(x) + .5, H); }
+    for (let y = (H / 2) % step; y <= H; y += step) { ctx.moveTo(0, Math.round(y) + .5); ctx.lineTo(W, Math.round(y) + .5); }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(t) {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    if (!TL || !TL.segs.length) return;
+    let seg = TL.segs[0];
+    for (const s of TL.segs) if (t >= s.start) seg = s;
+    const port = H > W;
+
+    if (seg.n === 1) {
+      const size = fitSize(seg.lines, H * (port ? 0.05 : 0.085), W * 0.88, H * 0.7, 1);
+      drawLines(seg.lines, t, { size, y: (H - blockHeight(seg.lines, size)) / 2, align: 'center' });
+    } else if (seg.n === 2) {
+      const size = fitSize(seg.lines, H * (port ? 0.05 : 0.085), W * 0.85, H * 0.78);
+      drawLines(seg.lines, t, { size, y: (H - blockHeight(seg.lines, size)) / 2 });
+    } else {
+      const a = Math.min(Math.max((t - seg.start) / 800, 0), 1);
+      if (S.bg === 'grid') drawGrid(a);
+      if (S.bg === 'key') { ctx.fillStyle = '#00b140'; ctx.globalAlpha = a; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+      if (t >= seg.modelStart) {
+        const p = Math.min((t - seg.modelStart) / 700, 1);
+        const s = Math.max(1 + 2.2 * Math.pow(p - 1, 3) + 1.2 * Math.pow(p - 1, 2), 0.001);
+        model.scale.setScalar(s * S.mscale / 100);
+        spinner.rotation.y = Math.PI * 2 * Math.min((t - seg.modelStart) / (S.turn * 1000), 1);
+        renderer.render(scene, camera);
+        ctx.drawImage(renderer.domElement, 0, 0, W, H);
+        if (S.statsOn) drawStats(t, seg);
+      }
+      const size = fitSize(seg.lines, H * (port ? 0.04 : 0.068), W * 0.85, H * 0.3);
+      drawLines(seg.lines, t, { size, y: H * (port ? 0.95 : 0.94) - blockHeight(seg.lines, size) });
+    }
+  }
+
+  // ---------- sound ----------
+  let actx = null, master, sfxBus, musicBus, recDest, noise, musicBuf = null, live = [];
+  function unlockAudio() {
+    const ac = audio(); if (!ac) return;
+    try {
+      if (ac.state !== 'running') ac.resume();
+      const b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource();
+      src.buffer = b; src.connect(ac.destination); src.start(0);
+    } catch (e) {}
+  }
+  document.addEventListener('touchend', unlockAudio, { capture: true, passive: true });
+  document.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
+  function audio() {
+    if (actx) return actx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    actx = new AC();
+    master = actx.createGain(); master.connect(actx.destination);
+    if (actx.createMediaStreamDestination) { recDest = actx.createMediaStreamDestination(); master.connect(recDest); }
+    sfxBus = actx.createGain(); sfxBus.connect(master);
+    musicBus = actx.createGain(); musicBus.connect(master);
+    noise = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+    const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    applyVolumes();
+    return actx;
+  }
+  function applyVolumes() {
+    if (!actx) return;
+    sfxBus.gain.value = S.sfx ? S.sfxVol : 0;
+    musicBus.gain.value = S.musicVol;
+  }
+  let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const keep = n => { live.push(n); return n; };
+  function env(g, at, peak, attack, decay) {
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + attack + decay);
+  }
+  function noiseHit(at, { type = 'bandpass', freq = 3000, q = 1.2, peak = 0.4, decay = 0.03, rate = 1 }) {
+    const src = keep(actx.createBufferSource()); src.buffer = noise;
+    src.playbackRate.value = rate * (0.85 + rnd() * 0.3);
+    const f = actx.createBiquadFilter(); f.type = type; f.frequency.value = freq * (0.85 + rnd() * 0.3); f.Q.value = q;
+    const g = actx.createGain(); env(g, at, peak, 0.002, decay);
+    src.connect(f).connect(g).connect(sfxBus); src.start(at, rnd() * 0.8, decay + 0.05);
+  }
+  function tone(at, { wave = 'sine', freq = 440, to = null, peak = 0.2, attack = 0.003, decay = 0.05, lp = null }) {
+    const o = keep(actx.createOscillator()); o.type = wave;
+    o.frequency.setValueAtTime(freq, at);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, at + attack + decay);
+    const g = actx.createGain(); env(g, at, peak, attack, decay);
+    let node = o;
+    if (lp) { const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; node = o.connect(f); }
+    node.connect(g).connect(sfxBus); o.start(at); o.stop(at + attack + decay + 0.05);
+  }
+  const pick = arr => arr[Math.floor(rnd() * arr.length)];
+
+  // one fixed typing sound: quick crisp taps with a digital overlay
+  const TYPING = {
+    key(at, soft) {
+      noiseHit(at, { type: 'highpass', freq: 3800, q: 0.7, peak: soft ? 0.18 : 0.3, decay: 0.012 });
+      tone(at, { wave: 'square', freq: soft ? 1050 : pick([1400, 1600, 1800, 2100]), peak: 0.035, attack: 0.001, decay: 0.025, lp: 6000 });
+      tone(at + 0.004, { freq: 3200, to: 1500, peak: 0.04, attack: 0.001, decay: 0.015 });
+    },
+    lineStart(at, dur) { // quiet data warble under each line while it types
+      const o = keep(actx.createOscillator()); o.type = 'square';
+      for (let t = 0; t < dur; t += 0.04) o.frequency.setValueAtTime(pick([220, 330, 440, 660, 880]), at + t);
+      const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1400;
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.02, at + 0.02);
+      g.gain.setValueAtTime(0.02, at + Math.max(dur - 0.03, 0.02)); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(f).connect(g).connect(sfxBus); o.start(at); o.stop(at + dur + 0.02);
+    }
+  };
+  const keyset = () => TYPING;
+
+  function blip(at) {
+    const o = keep(actx.createOscillator()); o.type = 'square'; o.frequency.value = 1180;
+    const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2500;
+    const g = actx.createGain(); env(g, at, 0.08, 0.005, 0.09);
+    o.connect(f).connect(g).connect(sfxBus); o.start(at); o.stop(at + 0.12);
+  }
+  function whoosh(at, dur) {
+    const src = keep(actx.createBufferSource()); src.buffer = noise; src.loop = true;
+    const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(250, at); bp.frequency.exponentialRampToValueAtTime(3500, at + dur);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.35, at + dur * 0.85); g.gain.exponentialRampToValueAtTime(0.0001, at + dur + 0.05);
+    src.connect(bp).connect(g).connect(sfxBus); src.start(at); src.stop(at + dur + 0.1);
+  }
+  function pop(at) {
+    const o = keep(actx.createOscillator()); o.type = 'sine';
+    o.frequency.setValueAtTime(520, at); o.frequency.exponentialRampToValueAtTime(90, at + 0.22);
+    const g = actx.createGain(); env(g, at, 0.6, 0.004, 0.3);
+    o.connect(g).connect(sfxBus); o.start(at); o.stop(at + 0.35);
+  }
+  // ---------- computer voice (SAM speech synth, rendered into the page's own audio so it records) ----------
+  let voiceReady = null, voiceCache = { key: '', bufs: null };
+  const briefSpeech = () => splitLines(S.brief).join(' ').replace(/\s+-(\s|$)/g, ', ').replace(/\s+/g, ' ').trim();
+  function loadVoiceEngine() {
+    if (window.SamJs) return Promise.resolve();
+    if (voiceReady) return voiceReady;
+    voiceReady = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdn.jsdelivr.net/npm/sam-js@0.3.1/dist/samjs.min.js'; sc.async = true;
+      sc.onload = () => window.SamJs ? res() : rej(new Error('engine'));
+      sc.onerror = () => rej(new Error('engine'));
+      document.head.appendChild(sc);
+    });
+    voiceReady.catch(() => { voiceReady = null; });
+    return voiceReady;
+  }
+  const lineSpeech = l => l.replace(/\s+-\s*$/, '').replace(/\s+-\s+/g, ', ').trim();
+  function voiceClips() {
+    return voiceCache.key === S.brief && voiceCache.bufs ? voiceCache.bufs : null;
+  }
+  const voiceClip = () => { const c = voiceClips(); return c && c.find(Boolean) || null; };
+  function phrases(text) {
+    const clean = text.replace(/[^a-zA-Z0-9 ,.?!']/g, ' ').replace(/\s+/g, ' ').trim();
+    const out = []; let cur = '';
+    for (const w of clean.split(' ').filter(Boolean)) {
+      if ((cur + ' ' + w).length > 60 && cur) { out.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w;
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+  async function prepareVoice() {
+    if (!S.voice || !S.s2on || S.vtype !== 'computer') return true;
+    const lines = splitLines(S.brief); if (!lines.length) return true;
+    const ready = () => { const d = voiceCache.bufs.reduce((n, b) => n + (b ? b.duration : 0), 0);
+      $('voiceNote').textContent = 'Computer voice ready (' + d.toFixed(1) + ' s). It records into the MP4.'; };
+    if (voiceClips()) { ready(); return true; }
+    const ac = audio(); if (!ac) return false;
+    try {
+      await loadVoiceEngine();
+      const voiceFor = (i, n) => new window.SamJs({ speed: 95, pitch: i === n - 1 ? 44 : [40, 42, 41][i % 3], throat: 140, mouth: 150 });
+      const RATE = 22050, gap = Math.round(RATE * 0.2);
+      const bufs = lines.map((line, li) => {
+        const sam = voiceFor(li, lines.length);
+        const chunks = [];
+        for (const ph of phrases(lineSpeech(line))) { const b = sam.buf32(ph.toUpperCase()); if (b && b.length) chunks.push(b); }
+        if (!chunks.length) return null;
+        const len = chunks.reduce((n, c) => n + c.length + gap, 0) - gap;
+        const buf = ac.createBuffer(1, len, RATE), d = buf.getChannelData(0);
+        let o = 0, peak = 0;
+        for (const c of chunks) { d.set(c, o); o += c.length + gap; }
+        for (let k = 0; k < d.length; k++) peak = Math.max(peak, Math.abs(d[k]));
+        if (peak > 0) for (let k = 0; k < d.length; k++) d[k] = d[k] / peak * 0.9;
+        return buf;
+      });
+      if (!bufs.some(Boolean)) throw new Error('empty');
+      voiceCache = { key: S.brief, bufs };
+      ready();
+      voiceFallback = false;
+      return true;
+    } catch (e) {
+      voiceFallback = !!window.speechSynthesis;
+      const why = e && e.message === 'engine' ? "the voice engine didn't download" : 'the voice engine failed (' + (e && e.message || e) + ')';
+      $('voiceNote').textContent = voiceFallback
+        ? 'Using your browser\'s built-in voice because ' + why + '. It plays in preview but won\'t be in the MP4.'
+        : 'No voice available: ' + why + '.';
+      return false;
+    }
+  }
+  let voiceFallback = false, voiceTimer = null, voiceTimers = [], voiceFileBuf = null;
+  function pickNaturalVoice() {
+    const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+    const en = vs.filter(v => /^en/i.test(v.lang));
+    const prefs = [/natural/i, /aria|jenny|michelle|ava|emma/i, /google us english/i, /samantha|allison|susan/i, /zira|hazel|karen|victoria|female/i];
+    for (const re of prefs) { const v = en.find(v => re.test(v.name)); if (v) return v; }
+    return en[0] || null;
+  }
+  try { window.speechSynthesis && speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {}; } catch (e) {}
+  function browserSpeak(text, queue) {
+    try {
+      if (!queue) speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.1; u.pitch = 1.05; u.volume = 1;
+      const v = pickNaturalVoice(); if (v) u.voice = v;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  let _room = null;
+  function roomIR() {
+    if (_room) return _room;
+    const len = Math.round(actx.sampleRate * 0.55);
+    _room = actx.createBuffer(2, len, actx.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = _room.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+    return _room;
+  }
+  function speakAt(at, buf) {
+    const src = keep(actx.createBufferSource()); src.buffer = buf;
+    const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 160;
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = 0.6;
+    const warm = actx.createBiquadFilter(); warm.type = 'peaking'; warm.frequency.value = 900; warm.gain.value = 3; warm.Q.value = 0.8;
+    const out = actx.createGain(); out.gain.value = 0.95;
+    src.connect(hp).connect(lp).connect(warm).connect(out).connect(master);
+    // soft double a hair out of tune and time, smooths the robotic edge
+    const dbl = keep(actx.createBufferSource()); dbl.buffer = buf; dbl.playbackRate.value = 1.004;
+    const dg = actx.createGain(); dg.gain.value = 0.3;
+    dbl.connect(dg).connect(lp);
+    // small room
+    const rv = actx.createConvolver(); rv.buffer = roomIR();
+    const wet = actx.createGain(); wet.gain.value = 0.16;
+    warm.connect(rv).connect(wet).connect(master);
+    src.start(at); dbl.start(at + 0.012);
+  }
+
+  function scheduleSound(t0) {
+    if (!actx) return;
+    seed = 7;
+    for (const seg of TL.segs) {
+      blip(t0 + (seg.start + 120) / 1000);
+      const ks = keyset();
+      for (const l of seg.lines) {
+        // soft readout blip as each letter appears
+        l.text.split('').forEach((ch, i) => {
+          if (ch === ' ') return;
+          const at = t0 + l.times[i] / 1000;
+          tone(at, { freq: ch === '.' ? 1320 : pick([1760, 1976, 2093]), peak: 0.05, attack: 0.002, decay: 0.03 });
+        });
+        // beep each time the cursor blinks on at the end of a finished line (up to 3 per line)
+        if (l.times.length) {
+          const li = seg.lines.indexOf(l), next = seg.lines[li + 1];
+          const from = l.times[l.times.length - 1] + 60, until = next ? next.t0 : seg.end;
+          let m = Math.ceil(from / 900), n = 0;
+          while (m * 900 < until - 80 && n < 3) {
+            tone(t0 + m * 900 / 1000, { wave: 'square', freq: 880, peak: 0.05, attack: 0.003, decay: 0.07, lp: 2400 });
+            m++; n++;
+          }
+        }
+        if (ks.lineEnd && l.times.length) ks.lineEnd(t0 + (l.times[l.times.length - 1] + 90) / 1000);
+      }
+      if (ks.sceneEnd && seg.lines.length) ks.sceneEnd(t0 + (seg.typedEnd + 60) / 1000);
+      const delayMs = at => Math.max(0, (t0 - actx.currentTime) * 1000 + at);
+      if (seg.n === 2 && S.voice && S.vtype === 'natural' && window.speechSynthesis) {
+        try { speechSynthesis.cancel(); } catch (e) {}
+        for (const l of seg.lines) if (l.say) voiceTimers.push(setTimeout(() => browserSpeak(l.say, true), delayMs(l.t0)));
+      }
+      else if (seg.n === 2 && S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
+        const src = keep(actx.createBufferSource()); src.buffer = voiceFileBuf; src.connect(master); src.start(t0 + seg.fileAt / 1000);
+      }
+      else if (seg.n === 2 && S.voice && S.vtype === 'computer' && voiceClips()) { for (const l of seg.lines) if (l.clip) speakAt(t0 + l.t0 / 1000, l.clip); }
+      else if (seg.n === 2 && S.voice && S.vtype === 'computer' && voiceFallback && seg.lines.length) {
+        clearTimeout(voiceTimer);
+        const text = briefSpeech();
+        voiceTimer = setTimeout(() => browserSpeak(text), Math.max(0, (t0 - actx.currentTime) * 1000 + seg.lines[0].t0));
+      }
+      if (seg.n === 3) { whoosh(t0 + seg.modelStart / 1000 - 0.45, 0.45); pop(t0 + seg.modelStart / 1000); }
+    }
+    if (musicBuf) {
+      const src = keep(actx.createBufferSource()); src.buffer = musicBuf;
+      const g = actx.createGain(); const end = t0 + TL.total / 1000;
+      g.gain.setValueAtTime(1, t0); g.gain.setValueAtTime(1, Math.max(t0, end - 1)); g.gain.linearRampToValueAtTime(0.0001, end);
+      src.connect(g).connect(musicBus); src.start(t0); src.stop(end + 0.05);
+    }
+  }
+  function silence() {
+    clearTimeout(voiceTimer); voiceTimers.forEach(clearTimeout); voiceTimers = []; try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {}
+    live.forEach(n => { try { n.stop(); } catch (e) {} });
+    live = [];
+  }
+
+
+  // ---------- playback + recording ----------
+  let playing = false, playStart = 0, idleT = 0, recorder = null, onDone = null;
+
+  let pvPart = 1;
+  const panelOpen = () => $('panel').classList.contains('open');
+  function idleTime() {
+    if (!TL.segs.length) return 0;
+    let s = TL.segs[0];
+    if (panelOpen()) {
+      const want = TL.segs.find(x => x.n === pvPart);
+      $('pvNote').textContent = want ? '' : 'This part is switched off — tick its box to include it.';
+      if (want) s = want;
+    }
+    return s.n === 3 ? s.modelStart + 4800 : s.typedEnd;
+  }
+  function setPreview(n) {
+    pvPart = n;
+    document.querySelectorAll('[data-pv]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.pv === n)));
+    TL = buildTimeline(); idleT = idleTime();
+  }
+  document.querySelectorAll('[data-pv]').forEach(b => b.addEventListener('click', () => setPreview(+b.dataset.pv)));
+  document.querySelectorAll('fieldset[data-part]').forEach(f => f.addEventListener('focusin', () => {
+    const n = +f.dataset.part; if (n !== pvPart) setPreview(n);
+  }));
+  new MutationObserver(() => { document.body.classList.toggle('editing', panelOpen()); $('editBtn').textContent = panelOpen() ? 'Done' : 'Edit'; })
+    .observe($('panel'), { attributes: true, attributeFilter: ['class'] });
+  const mini = $('mini'), mctx = mini.getContext('2d');
+  function drawMini() {
+    const w = 640, h = Math.round(640 * H / W);
+    if (mini.width !== w || mini.height !== h) { mini.width = w; mini.height = h; }
+    mctx.drawImage(canvas, 0, 0, w, h);
+  }
+  function onSettingsChange(k) {
+    if (k === 'color') { material.color.set(S.color); buildColorPickers(); }
+    if (k === 'sfx' || k === 'sfxVol' || k === 'musicVol') applyVolumes();
+    if (k === 'format') setSize();
+    if (k === 'view' || k === 'tilt') applyView();
+    if (k === 'zones') $('zoneRow').hidden = !S.zones;
+    if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
+  }
+
+  function frame(now) {
+    let t = idleT;
+    if (playing) {
+      t = Math.max(0, now - playStart);
+      if (t >= TL.total) { t = TL.total; playing = false; const cb = onDone; onDone = null; draw(t); cb && cb(); }
+    }
+    draw(t);
+
+    requestAnimationFrame(frame);
+  }
+
+  function status(html, ms) {
+    const el = $('status');
+    el.innerHTML = html; el.classList.add('show');
+    clearTimeout(status._t);
+    if (ms) status._t = setTimeout(() => el.classList.remove('show'), ms);
+  }
+  const hideStatus = () => $('status').classList.remove('show');
+
+  async function playWithVoice(done) {
+    audio(); if (actx && actx.state === 'suspended') actx.resume();
+    await prepareVoice();
+    play(done);
+  }
+  function play(done) {
+    $('panel').classList.remove('open');
+    document.body.classList.add('hidden-ui');
+    TL = buildTimeline();
+    silence();
+    const ac = audio();
+    const lead = 0.08;
+    if (ac) { if (ac.state === 'suspended') ac.resume(); scheduleSound(ac.currentTime + lead); }
+    playStart = performance.now() + lead * 1000;
+    playing = true;
+    onDone = () => { document.body.classList.remove('hidden-ui'); idleT = idleTime(); done && done(); };
+  }
+  function stop() {
+    if (!playing) return;
+    playing = false; onDone = null;
+    silence();
+    if (recorder && recorder.state !== 'inactive') { recorder._cancelled = true; recorder.stop(); }
+    document.body.classList.remove('hidden-ui');
+    idleT = idleTime(); hideStatus();
+  }
+
+  const MIMES = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp9', 'video/webm'];
+  const canRecord = typeof MediaRecorder !== 'undefined' && !!canvas.captureStream;
+  const pickMime = () => MIMES.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || '';
+
+  let downloads = null;
+  async function exportVideo() {
+    if (!TL.segs.length) { status('Turn on at least one part first.', 3000); return; }
+    const mime = pickMime();
+    if (!mime) { status("This browser can't record video — try Chrome, Edge or Safari.", 5000); return; }
+    const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+    const chunks = [];
+    audio();
+    if (actx && actx.state === 'suspended') await actx.resume();
+    await prepareVoice();
+    const video = canvas.captureStream(30);
+    const stream = new MediaStream([...video.getVideoTracks(), ...(recDest ? recDest.stream.getAudioTracks() : [])]);
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10_000_000, audioBitsPerSecond: 192_000 });
+    recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const rec = recorder;
+    rec.onstop = async () => {
+      video.getTracks().forEach(tr => tr.stop());
+      recorder = null;
+      if (rec._cancelled) { status('Recording stopped.', 2500); return; }
+      const blob = new Blob(chunks, { type: mime.split(';')[0] });
+      const name = (S.title.trim() || 'intro').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-intro.' + ext;
+      status('Saving video…');
+      try {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        status(ext === 'mp4' ? 'Saved ' + name : 'Saved ' + name + " — this browser can't make MP4; use Chrome, Edge or Safari for MP4.", 5000);
+      } catch (err) { status("Saving isn't available in this browser.", 4000); }
+    };
+    status('<span class="dot"></span>Recording — keep this screen open');
+    rec.start(250);
+    // draw the first frame before timing starts so the video doesn't open on a stale frame
+    play(() => { setTimeout(() => { if (rec.state !== 'inactive') rec.stop(); }, 300); });
+  }
+
+  $('playBtn').addEventListener('click', () => playWithVoice());
+  const syncVoiceUI = () => { $('vfileRow').hidden = S.vtype !== 'file'; $('voiceNote').textContent = 'Tap Test voice to hear it.'; };
+  $('f-vtype').addEventListener('input', syncVoiceUI);
+  $('f-vfile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const ac = audio(); if (!ac) return;
+    $('voiceNote').textContent = 'Loading ' + f.name + '…';
+    try {
+      const data = await f.arrayBuffer();
+      voiceFileBuf = await new Promise((res, rej) => ac.decodeAudioData(data, res, rej));
+      $('voiceNote').textContent = 'Using ' + f.name + ' (' + voiceFileBuf.duration.toFixed(1) + ' s). Re-add it after reloading the page.';
+      if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
+    } catch (err) { voiceFileBuf = null; $('voiceNote').textContent = "That audio file couldn't be read. Try an MP3 or WAV."; }
+  });
+  syncVoiceUI();
+  $('testVoice').addEventListener('click', async () => {
+    const ac = audio(); if (!ac) return;
+    unlockAudio();
+    silence();
+    if (S.vtype === 'natural') {
+      if (!window.speechSynthesis) { $('voiceNote').textContent = "This browser has no built-in voice. Pick Computer voice instead."; return; }
+      browserSpeak(briefSpeech());
+      const v = pickNaturalVoice();
+      $('voiceNote').textContent = 'Using ' + (v ? v.name : 'your device voice') + '. It plays in preview; for the MP4 use Computer voice or your own recording.';
+      return;
+    }
+    if (S.vtype === 'file') {
+      if (!voiceFileBuf) { $('voiceNote').textContent = 'Choose a voice-over file first.'; return; }
+      if (ac.state !== 'running') await ac.resume();
+      const src = keep(ac.createBufferSource()); src.buffer = voiceFileBuf; src.connect(master); src.start(ac.currentTime + 0.05);
+      $('voiceNote').textContent = 'Playing your recording (' + voiceFileBuf.duration.toFixed(1) + ' s).';
+      return;
+    }
+    if (!window.SamJs && window.speechSynthesis) browserSpeak(briefSpeech());
+    $('voiceNote').textContent = 'Loading voice…';
+    const was = S.voice; S.voice = true;
+    const ok = await prepareVoice(); S.voice = was;
+    if (ok && voiceClips()) {
+      if (ac.state !== 'running') await ac.resume();
+      let at = ac.currentTime + 0.05;
+      for (const b of voiceClips()) if (b) { speakAt(at, b); at += b.duration + 0.25; }
+    }
+  });
+  $('saveBtn').addEventListener('click', exportVideo);
+  $('editBtn').addEventListener('click', () => {
+    if (panelOpen()) { $('closeBtn').click(); return; }
+    stop(); $('panel').classList.add('open'); setPreview(pvPart);
+  });
+  $('closeBtn').addEventListener('click', () => { $('panel').classList.remove('open'); TL = buildTimeline(); idleT = idleTime(); });
+  document.addEventListener('pointerdown', e => { if (playing && !e.target.closest('.toolbar')) stop(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') stop(); });
+
+  // ---------- start ----------
+  addEventListener('load', () => setTimeout(() => { if (S.voice) loadVoiceEngine().catch(() => {}); }, 300));
+  setSize();
+  $('zoneRow').hidden = !S.zones;
+  buildColorPickers();
+  TL = buildTimeline(); idleT = idleTime();
+  requestAnimationFrame(frame);
+  (document.fonts ? document.fonts.load(font(64)) : Promise.resolve()).catch(() => {});
+
+  (async () => {
+    if (canRecord) $('saveBtn').hidden = false;
+  })();
+</script>
+</body>
+</html>
