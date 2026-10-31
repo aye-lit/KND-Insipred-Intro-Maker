@@ -1056,7 +1056,28 @@
     document.querySelectorAll('[data-pv]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.pv === n)));
     TL = buildTimeline(); idleT = idleTime();
   }
-  document.querySelectorAll('[data-pv]').forEach(b => b.addEventListener('click', () => setPreview(+b.dataset.pv)));
+  // clicking a part tab jumps the settings to that part
+  let jumpUntil = 0;
+  // where the bottom of the pinned tabs sits once the settings are scrolled
+  const stuckBottom = () => { const pv = $('panel').querySelector('.preview'); return $('panel').getBoundingClientRect().top + (parseFloat(getComputedStyle(pv).top) || 0) + pv.offsetHeight; };
+  function jumpTo(n) {
+    const panel = $('panel'), f = panel.querySelector(`fieldset[data-part="${n}"]`);
+    if (!f) return;
+    const stickyBottom = stuckBottom();
+    const y = panel.scrollTop + f.getBoundingClientRect().top - stickyBottom - 14;
+    jumpUntil = performance.now() + 900;
+    panel.scrollTo({ top: Math.max(0, y), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
+  document.querySelectorAll('[data-pv]').forEach(b => b.addEventListener('click', () => { setPreview(+b.dataset.pv); jumpTo(+b.dataset.pv); }));
+  // scrolling through the settings keeps the tab (and preview) on the part you're looking at
+  $('panel').addEventListener('scroll', () => {
+    if (performance.now() < jumpUntil) return;
+    const panel = $('panel'), line = stuckBottom() + 40;
+    let n = 0;
+    panel.querySelectorAll('fieldset[data-part]').forEach(f => { if (f.getBoundingClientRect().top <= line) n = +f.dataset.part; });
+    if (panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 4) n = 3;
+    if (n && n !== pvPart) setPreview(n);
+  }, { passive: true });
   document.querySelectorAll('fieldset[data-part]').forEach(f => f.addEventListener('focusin', () => {
     const n = +f.dataset.part; if (n !== pvPart) setPreview(n);
   }));
