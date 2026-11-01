@@ -198,14 +198,50 @@
   <fieldset data-part="2" data-tab="brief">
     <legend><input type="checkbox" data-k="s2on" aria-label="Include briefing"> 2 · Briefing</legend>
     <label for="f-brief">Text — each line types on its own row</label>
-    <textarea id="f-brief" data-k="brief"></textarea>
+    <textarea id="f-brief" data-k="brief" style="min-height:120px"></textarea>
     <label class="check"><input type="checkbox" data-k="voice"> A voice reads the briefing</label>
     <label for="f-vtype">Voice</label>
     <select id="f-vtype" data-k="vtype">
-      <option value="natural">Natural voice (your device's voice, preview only)</option>
-      <option value="computer">Computer voice (records into the MP4)</option>
-      <option value="file">My own recording (records into the MP4)</option>
+      <option value="human">Human-like AI voice</option>
+      <option value="robot">Robotic AI voice</option>
+      <option value="file">My own recording</option>
     </select>
+    <div class="row" id="humanRow">
+      <div>
+        <label for="f-hvoice">Human-like voice</label>
+        <select id="f-hvoice" data-k="hvoice">
+          <option value="af_heart">Heart (woman, warm)</option>
+          <option value="af_bella">Bella (woman, lively)</option>
+          <option value="af_nicole">Nicole (woman, soft)</option>
+          <option value="af_aoede">Aoede (woman, smooth)</option>
+          <option value="af_kore">Kore (woman, steady)</option>
+          <option value="af_sarah">Sarah (woman, calm)</option>
+          <option value="af_nova">Nova (woman, crisp)</option>
+          <option value="bf_emma">Emma (British woman)</option>
+          <option value="bf_isabella">Isabella (British woman)</option>
+          <option value="am_michael">Michael (man, friendly)</option>
+          <option value="am_fenrir">Fenrir (man, deep)</option>
+          <option value="am_puck">Puck (man, upbeat)</option>
+          <option value="bm_george">George (British man)</option>
+          <option value="bm_fable">Fable (British man)</option>
+        </select>
+      </div>
+      <div>
+        <label for="f-robo">Robotic</label>
+        <input id="f-robo" type="range" min="0" max="100" step="5" data-k="robo">
+      </div>
+    </div>
+    <div id="robotRow" hidden>
+      <label for="f-rvoice">Robotic voice</label>
+      <select id="f-rvoice" data-k="rvoice">
+        <option value="classic">Classic computer</option>
+        <option value="tin">Tin droid</option>
+        <option value="mainframe">Deep mainframe</option>
+        <option value="glitch">Glitch bot</option>
+        <option value="radio">Radio bot</option>
+        <option value="tiny">Tiny bot</option>
+      </select>
+    </div>
     <div id="vfileRow" hidden>
       <label for="f-vfile">Voice-over file (.mp3, .wav, .m4a)</label>
       <input id="f-vfile" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg">
@@ -336,7 +372,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'human', hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -347,7 +383,11 @@
   if (!S.layout) { S.layout = DEFAULTS.layout; if (S.stats === 'power: 85\nrange: 60\nstability: 72\naccuracy: 90') S.stats = DEFAULTS.stats; }
   if (typeof S.mscale !== 'number') S.mscale = 100;
   if (typeof S.voice !== 'boolean') S.voice = true;
-  if (!S.vtype) S.vtype = 'natural';
+  if (!S.vtype || S.vtype === 'natural') S.vtype = 'human';
+  if (S.vtype === 'computer') S.vtype = 'robot';
+  if (!S.hvoice) S.hvoice = 'af_heart';
+  if (typeof S.robo !== 'number') S.robo = 0;
+  if (!S.rvoice) S.rvoice = 'classic';
   if (typeof S.zones !== 'boolean') { S.zones = DEFAULTS.zones; S.z1 = DEFAULTS.z1; S.z2 = DEFAULTS.z2; S.z3 = DEFAULTS.z3; }
   if (!S.view) S.view = 'front';
   if (typeof S.tilt !== 'number') S.tilt = 20;
@@ -361,7 +401,7 @@
     const k = el.dataset.k;
     const FMT = {
       speed: v => (+v).toFixed(1) + '×', hold: v => (+v).toFixed(1) + ' s', turn: v => (+v).toFixed(1) + ' s',
-      tilt: v => v + '°', mscale: v => v + '%',
+      tilt: v => v + '°', mscale: v => v + '%', robo: v => +v === 0 ? 'off' : v + '%',
       pwX: v => (v > 0 ? '+' : '') + v, pwY: v => (v > 0 ? '+' : '') + v, grX: v => (v > 0 ? '+' : '') + v, grY: v => (v > 0 ? '+' : '') + v
     };
     let val = null;
@@ -542,22 +582,9 @@
       const seg = add(1, lines, 500, 350); seg.end = seg.typedEnd + hold; segs.push(seg); t = seg.end;
     }
     if (S.s2on) {
-      const clips = S.voice && S.vtype === 'computer' ? voiceClips() : null;
+      const clips = S.voice && isAIVoice() ? voiceClips() : null;
       let seg;
-      if (S.voice && S.vtype === 'natural' && window.speechSynthesis) {
-        // natural voice reads the whole briefing in one go; each line types at the pace it's spoken
-        seg = { n: 2, start: t, lines: [] }; let c = t + 400;
-        splitLines(S.brief).forEach((text, i) => {
-          const tx = text.toLowerCase();
-          const words = lineSpeech(text).split(/\s+/).filter(Boolean).length;
-          const pause = /[-,.!?:;]\s*$/.test(text) ? 260 : 40;
-          const dur = Math.max(words * 330, tx.length * 30);
-          const line = { text: tx, block: 0, t0: c, times: [], say: i === 0 ? briefSpeech() : null };
-          for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
-          seg.lines.push(line); c += dur + pause;
-        });
-        seg.typedEnd = c;
-      } else if (clips) {
+      if (clips) {
         // each line types out exactly as long as its spoken clip lasts
         seg = { n: 2, start: t, lines: [] }; let c = t + 400;
         splitLines(S.brief).forEach((text, i) => {
@@ -911,8 +938,12 @@
     const g = actx.createGain(); env(g, at, 0.6, 0.004, 0.3);
     o.connect(g).connect(sfxBus); o.start(at); o.stop(at + 0.35);
   }
-  // ---------- computer voice (SAM speech synth, rendered into the page's own audio so it records) ----------
+  // ---------- AI voices ----------
+  // Robotic voices: SAM speech synth (tiny, no download) plus an effect per preset.
+  // Human-like voices: Kokoro AI model, loaded quietly in the background once and kept by the browser.
+  // Both are rendered into the page's own audio so they record into the MP4.
   let voiceReady = null, voiceCache = { key: '', bufs: null };
+  const isAIVoice = () => S.vtype === 'human' || S.vtype === 'robot';
   const briefSpeech = () => splitLines(S.brief).join(' ').replace(/\s+-(\s|$)/g, ', ').replace(/\s+/g, ' ').trim();
   function loadVoiceEngine() {
     if (window.SamJs) return Promise.resolve();
@@ -927,9 +958,113 @@
     voiceReady.catch(() => { voiceReady = null; });
     return voiceReady;
   }
+  // human-like model, loaded in the background
+  let humanTTS = null, humanPct = 0, humanErr = null;
+  function loadHumanEngine() {
+    if (humanTTS) return humanTTS;
+    humanErr = null;
+    humanTTS = (async () => {
+      let mod;
+      try { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'); }
+      catch (e) { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1/+esm'); }
+      const files = {};
+      const tts = await mod.KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+        dtype: 'q8', device: 'wasm',
+        progress_callback: p => {
+          if (p.status !== 'progress' || !p.total) return;
+          files[p.file] = [p.loaded, p.total];
+          const v = Object.values(files);
+          humanPct = Math.round(v.reduce((a, x) => a + x[0], 0) / v.reduce((a, x) => a + x[1], 0) * 100);
+          if (S.vtype === 'human' && !voiceClips()) $('voiceNote').textContent = 'Human-like voices getting ready… ' + humanPct + '%';
+        }
+      });
+      humanPct = 100;
+      return tts;
+    })();
+    humanTTS.catch(e => { humanErr = e; humanTTS = null; });
+    return humanTTS;
+  }
+
+  // ---- sound effects on raw samples ----
+  function biquad(x, type, f, q, sr) {
+    const w = 2 * Math.PI * f / sr, cs = Math.cos(w), al = Math.sin(w) / (2 * q);
+    let b0, b1, b2, a0 = 1 + al, a1 = -2 * cs, a2 = 1 - al;
+    if (type === 'bp') { b0 = al; b1 = 0; b2 = -al; }
+    else if (type === 'lp') { b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = (1 - cs) / 2; }
+    else { b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = (1 + cs) / 2; }
+    const y = new Float32Array(x.length); let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < x.length; i++) {
+      const v = (b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+      x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v;
+    }
+    return y;
+  }
+  const band = (x, lo, hi, sr) => { const c = Math.sqrt(lo * hi), q = c / (hi - lo); return biquad(biquad(x, 'bp', c, q, sr), 'bp', c, q, sr); };
+  const FX = {
+    ring(x, sr, hz, mix = 1) { const y = new Float32Array(x.length); for (let i = 0; i < x.length; i++) y[i] = x[i] * (1 - mix + mix * Math.sin(2 * Math.PI * hz * i / sr)); return y; },
+    comb(x, sr, ms, fb) { const n = Math.round(sr * ms / 1000), y = new Float32Array(x.length); for (let i = 0; i < x.length; i++) y[i] = (1 - fb) * x[i] + (i >= n ? fb * y[i - n] : 0); return y; },
+    crush(x, sr, bits, rate) { const step = Math.max(1, Math.round(sr / rate)), q = Math.pow(2, bits - 1), y = new Float32Array(x.length); let h = 0; for (let i = 0; i < x.length; i++) { if (i % step === 0) h = Math.round(x[i] * q) / q; y[i] = h; } return y; },
+    sat(x, k) { const t = Math.tanh(k), y = new Float32Array(x.length); for (let i = 0; i < x.length; i++) y[i] = Math.tanh(k * x[i]) / t; return y; },
+    flanger(x, sr, base, depth, hz, fb) {
+      const y = new Float32Array(x.length), buf = new Float32Array(x.length);
+      for (let i = 0; i < x.length; i++) {
+        const d = (base + depth * (0.5 + 0.5 * Math.sin(2 * Math.PI * hz * i / sr))) * sr / 1000, j = i - d, k = Math.floor(j), f = j - k;
+        const dv = k >= 0 ? buf[k] * (1 - f) + buf[k + 1] * f : 0;
+        buf[i] = x[i] + fb * dv; y[i] = 0.5 * x[i] + 0.5 * dv;
+      }
+      return y;
+    },
+    // flattens speech onto one buzzy pitch (classic robot)
+    vocoder(x, sr, f0, bands = 18) {
+      const car = new Float32Array(x.length); let seed = 1;
+      for (let i = 0; i < x.length; i++) { seed = (seed * 16807) % 2147483647; car[i] = 2 * ((i * f0 / sr) % 1) - 1 + 0.15 * (seed / 1073741823 - 1); }
+      const out = new Float32Array(x.length), lo = 120, hi = Math.min(7000, sr * 0.45);
+      for (let b = 0; b < bands; b++) {
+        const f1 = lo * Math.pow(hi / lo, b / bands), f2 = lo * Math.pow(hi / lo, (b + 1) / bands);
+        const mb = band(x, f1, f2, sr); for (let i = 0; i < mb.length; i++) mb[i] = Math.abs(mb[i]);
+        const env = biquad(biquad(mb, 'lp', 40, 0.707, sr), 'lp', 40, 0.707, sr), cb = band(car, f1, f2, sr);
+        for (let i = 0; i < out.length; i++) out[i] += cb[i] * env[i];
+      }
+      return out;
+    }
+  };
+  const mixTo = (dry, wet, m) => { const y = new Float32Array(dry.length); for (let i = 0; i < y.length; i++) y[i] = dry[i] * (1 - m) + wet[i] * m; return y; };
+  function peakTo(x, p = 0.9) { let m = 0; for (const v of x) m = Math.max(m, Math.abs(v)); if (m > 0) for (let i = 0; i < x.length; i++) x[i] = x[i] / m * p; return x; }
+  // even loudness across voices and effects: aim for the same average level, softly limiting peaks
+  function level(x, target = 0.2) {
+    let e = 0; for (const v of x) e += v * v;
+    const rms = Math.sqrt(e / Math.max(1, x.length)); if (!rms) return x;
+    const g = target / rms, k = 1.4, t = Math.tanh(k);
+    for (let i = 0; i < x.length; i++) { const v = x[i] * g; x[i] = Math.abs(v) < 0.6 ? v : Math.sign(v) * (0.6 + 0.35 * Math.tanh((Math.abs(v) - 0.6) / 0.35)); }
+    return x;
+  }
+  function trimSilence(x, sr) {
+    let a = 0, b = x.length - 1; const th = 0.012, pad = Math.round(sr * 0.03);
+    while (a < b && Math.abs(x[a]) < th) a++;
+    while (b > a && Math.abs(x[b]) < th) b--;
+    return x.slice(Math.max(0, a - pad), Math.min(x.length, b + pad));
+  }
+  // the "Robotic" slider for human-like voices (0 = untouched)
+  function roboticize(x, sr, amount, female) {
+    if (amount <= 0) return x;
+    const voc = peakTo(FX.vocoder(x, sr, female ? 165 : 100));
+    let y = mixTo(peakTo(Float32Array.from(x)), voc, 0.9 * amount);
+    y = FX.ring(y, sr, 50, 0.45 * amount);
+    return FX.comb(y, sr, 4, 0.55 * amount);
+  }
+  // robotic voices: SAM settings + an effect each
+  const ROBOTS = {
+    classic:   { sam: i => ({ speed: 95, pitch: [40, 42, 41][i % 3], throat: 140, mouth: 150 }), smooth: true },
+    tin:       { sam: () => ({ speed: 85, pitch: 58, throat: 160, mouth: 170 }), fx: (x, sr) => FX.comb(x, sr, 3.2, 0.72) },
+    mainframe: { sam: () => ({ speed: 100, pitch: 92, throat: 120, mouth: 140 }), fx: (x, sr) => FX.ring(x, sr, 35) },
+    glitch:    { sam: () => ({ speed: 80, pitch: 50, throat: 128, mouth: 128 }), fx: (x, sr) => FX.crush(x, sr, 5, 5500) },
+    radio:     { sam: () => ({ speed: 90, pitch: 64, throat: 150, mouth: 150 }), fx: (x, sr) => FX.sat(band(FX.ring(x, sr, 60, 0.6), 400, 3200, sr), 3) },
+    tiny:      { sam: () => ({ speed: 70, pitch: 30, throat: 190, mouth: 190 }), fx: (x, sr) => FX.flanger(x, sr, 1.5, 2.5, 0.6, 0.75) }
+  };
   const lineSpeech = l => l.replace(/\s+-\s*$/, '').replace(/\s+-\s+/g, ', ').trim();
+  const voiceKey = () => [S.vtype, S.vtype === 'human' ? S.hvoice + '/' + S.robo : S.rvoice, S.brief].join('|');
   function voiceClips() {
-    return voiceCache.key === S.brief && voiceCache.bufs ? voiceCache.bufs : null;
+    return voiceCache.key === voiceKey() && voiceCache.bufs ? voiceCache.bufs : null;
   }
   const voiceClip = () => { const c = voiceClips(); return c && c.find(Boolean) || null; };
   function phrases(text) {
@@ -941,44 +1076,73 @@
     if (cur) out.push(cur);
     return out;
   }
+  const toBuffer = (ac, data, sr) => { const b = ac.createBuffer(1, data.length, sr); b.copyToChannel(data, 0); return b; };
+  let preparing = null;
   async function prepareVoice() {
-    if (!S.voice || !S.s2on || S.vtype !== 'computer') return true;
+    if (!S.voice || !S.s2on || !isAIVoice()) return true;
     const lines = splitLines(S.brief); if (!lines.length) return true;
+    const key = voiceKey();
     const ready = () => { const d = voiceCache.bufs.reduce((n, b) => n + (b ? b.duration : 0), 0);
-      $('voiceNote').textContent = 'Computer voice ready (' + d.toFixed(1) + ' s). It records into the MP4.'; };
+      $('voiceNote').textContent = 'Voice ready (' + d.toFixed(1) + ' s). It records into the MP4.'; };
     if (voiceClips()) { ready(); return true; }
+    if (preparing && preparing.key === key) return preparing.p;
     const ac = audio(); if (!ac) return false;
-    try {
-      await loadVoiceEngine();
-      const voiceFor = (i, n) => new window.SamJs({ speed: 95, pitch: i === n - 1 ? 44 : [40, 42, 41][i % 3], throat: 140, mouth: 150 });
-      const RATE = 22050, gap = Math.round(RATE * 0.2);
-      const bufs = lines.map((line, li) => {
-        const sam = voiceFor(li, lines.length);
-        const chunks = [];
-        for (const ph of phrases(lineSpeech(line))) { const b = sam.buf32(ph.toUpperCase()); if (b && b.length) chunks.push(b); }
-        if (!chunks.length) return null;
-        const len = chunks.reduce((n, c) => n + c.length + gap, 0) - gap;
-        const buf = ac.createBuffer(1, len, RATE), d = buf.getChannelData(0);
-        let o = 0, peak = 0;
-        for (const c of chunks) { d.set(c, o); o += c.length + gap; }
-        for (let k = 0; k < d.length; k++) peak = Math.max(peak, Math.abs(d[k]));
-        if (peak > 0) for (let k = 0; k < d.length; k++) d[k] = d[k] / peak * 0.9;
-        return buf;
-      });
-      if (!bufs.some(Boolean)) throw new Error('empty');
-      voiceCache = { key: S.brief, bufs };
-      ready();
-      voiceFallback = false;
-      return true;
-    } catch (e) {
-      voiceFallback = !!window.speechSynthesis;
-      const why = e && e.message === 'engine' ? "the voice engine didn't download" : 'the voice engine failed (' + (e && e.message || e) + ')';
-      $('voiceNote').textContent = voiceFallback
-        ? 'Using your browser\'s built-in voice because ' + why + '. It plays in preview but won\'t be in the MP4.'
-        : 'No voice available: ' + why + '.';
-      return false;
-    }
+    const p = (async () => {
+      try {
+        let bufs;
+        if (S.vtype === 'robot') {
+          await loadVoiceEngine();
+          const R = ROBOTS[S.rvoice] || ROBOTS.classic, RATE = 22050, gap = Math.round(RATE * 0.2);
+          bufs = lines.map((line, li) => {
+            const opts = R.sam(li); if (R.smooth && li === lines.length - 1) opts.pitch = 44;
+            const sam = new window.SamJs(opts), chunks = [];
+            for (const ph of phrases(lineSpeech(line))) { const b = sam.buf32(ph.toUpperCase()); if (b && b.length) chunks.push(b); }
+            if (!chunks.length) return null;
+            let d = new Float32Array(chunks.reduce((n, c) => n + c.length + gap, 0) - gap), o = 0;
+            for (const c of chunks) { d.set(c, o); o += c.length + gap; }
+            if (R.fx) d = R.fx(peakTo(d), RATE);
+            const buf = toBuffer(ac, R.smooth ? peakTo(d) : level(d), RATE); buf._smooth = !!R.smooth; return buf;
+          });
+        } else {
+          if (!humanTTS) loadHumanEngine();
+          if (humanPct < 100) $('voiceNote').textContent = 'Human-like voices getting ready… ' + humanPct + '%';
+          const tts = await loadHumanEngine();
+          $('voiceNote').textContent = 'Making the voice…';
+          const female = /^.f_/.test(S.hvoice), amt = S.robo / 100;
+          bufs = [];
+          for (const line of lines) {
+            const say = lineSpeech(line).replace(/[^a-zA-Z0-9 ,.?!']/g, ' ').trim();
+            if (!say) { bufs.push(null); continue; }
+            const out = await tts.generate(say, { voice: S.hvoice });
+            const sr = out.sampling_rate;
+            let d = trimSilence(Float32Array.from(out.audio), sr);
+            d = roboticize(d, sr, amt, female);
+            bufs.push(toBuffer(ac, level(d), sr));
+          }
+        }
+        if (!bufs.some(Boolean)) throw new Error('empty');
+        if (voiceKey() !== key) return prepareVoice();   // settings changed while we were working
+        voiceCache = { key, bufs };
+        ready();
+        voiceFallback = false;
+        if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
+        return true;
+      } catch (e) {
+        console.error(e);
+        voiceFallback = !!window.speechSynthesis;
+        const why = S.vtype === 'human' ? "the human-like voices couldn't load in this browser" : "the robotic voice couldn't load";
+        $('voiceNote').textContent = voiceFallback
+          ? 'Using your device voice because ' + why + '. It plays in preview but won\'t be in the MP4. Try Chrome or Edge on a computer.'
+          : 'No voice available: ' + why + '.';
+        return false;
+      } finally { if (preparing && preparing.key === key) preparing = null; }
+    })();
+    preparing = { key, p };
+    return p;
   }
+  // get the voice ready in the background after edits so Play starts right away
+  let prepTimer = null;
+  function prepSoon() { clearTimeout(prepTimer); prepTimer = setTimeout(() => { if (S.voice && S.s2on && isAIVoice()) prepareVoice(); }, 900); }
   let voiceFallback = false, voiceTimer = null, voiceTimers = [], voiceFileBuf = null;
   function pickNaturalVoice() {
     const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
@@ -1007,6 +1171,12 @@
   }
   function speakAt(at, buf) {
     const src = keep(actx.createBufferSource()); src.buffer = buf;
+    if (!buf._smooth) {
+      const g = actx.createGain(); g.gain.value = 0.95; src.connect(g).connect(master);
+      const rv = actx.createConvolver(); rv.buffer = roomIR();
+      const wet = actx.createGain(); wet.gain.value = 0.08; g.connect(rv).connect(wet).connect(master);
+      src.start(at); return;
+    }
     const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 160;
     const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = 0.6;
     const warm = actx.createBiquadFilter(); warm.type = 'peaking'; warm.frequency.value = 900; warm.gain.value = 3; warm.Q.value = 0.8;
@@ -1050,15 +1220,11 @@
       }
       if (ks.sceneEnd && seg.lines.length) ks.sceneEnd(t0 + (seg.typedEnd + 60) / 1000);
       const delayMs = at => Math.max(0, (t0 - actx.currentTime) * 1000 + at);
-      if (seg.n === 2 && S.voice && S.vtype === 'natural' && window.speechSynthesis) {
-        try { speechSynthesis.cancel(); } catch (e) {}
-        for (const l of seg.lines) if (l.say) voiceTimers.push(setTimeout(() => browserSpeak(l.say, true), delayMs(l.t0)));
-      }
-      else if (seg.n === 2 && S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
+      if (seg.n === 2 && S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
         const src = keep(actx.createBufferSource()); src.buffer = voiceFileBuf; src.connect(master); src.start(t0 + seg.fileAt / 1000);
       }
-      else if (seg.n === 2 && S.voice && S.vtype === 'computer' && voiceClips()) { for (const l of seg.lines) if (l.clip) speakAt(t0 + l.t0 / 1000, l.clip); }
-      else if (seg.n === 2 && S.voice && S.vtype === 'computer' && voiceFallback && seg.lines.length) {
+      else if (seg.n === 2 && S.voice && isAIVoice() && voiceClips()) { for (const l of seg.lines) if (l.clip) speakAt(t0 + l.t0 / 1000, l.clip); }
+      else if (seg.n === 2 && S.voice && isAIVoice() && voiceFallback && seg.lines.length) {
         clearTimeout(voiceTimer);
         const text = briefSpeech();
         voiceTimer = setTimeout(() => browserSpeak(text), Math.max(0, (t0 - actx.currentTime) * 1000 + seg.lines[0].t0));
@@ -1123,6 +1289,7 @@
     if (k === 'format') setSize();
     if (k === 'view' || k === 'tilt') applyView();
     if (k === 'zones') $('zoneRow').hidden = !S.zones;
+    if (['brief', 'hvoice', 'robo', 'rvoice', 'voice', 's2on'].includes(k)) { if (k === 'voice' && S.voice && S.vtype === 'human') loadHumanEngine(); prepSoon(); }
     if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
   }
 
@@ -1214,8 +1381,16 @@
   }
 
   $('playBtn').addEventListener('click', () => playWithVoice());
-  const syncVoiceUI = () => { $('vfileRow').hidden = S.vtype !== 'file'; $('voiceNote').textContent = 'Tap Test voice to hear it.'; };
-  $('f-vtype').addEventListener('input', syncVoiceUI);
+  const syncVoiceUI = (initial) => {
+    $('vfileRow').hidden = S.vtype !== 'file';
+    $('humanRow').hidden = S.vtype !== 'human';
+    $('robotRow').hidden = S.vtype !== 'robot';
+    $('voiceNote').textContent = S.vtype === 'human' && humanPct < 100 && humanTTS ? 'Human-like voices getting ready… ' + humanPct + '%' : 'Tap Test voice to hear it.';
+    if (initial) return;
+    if (S.vtype === 'human' && S.voice) loadHumanEngine();
+    prepSoon();
+  };
+  $('f-vtype').addEventListener('input', () => syncVoiceUI());
   $('f-vfile').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
     const ac = audio(); if (!ac) return;
@@ -1227,18 +1402,11 @@
       if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
     } catch (err) { voiceFileBuf = null; $('voiceNote').textContent = "That audio file couldn't be read. Try an MP3 or WAV."; }
   });
-  syncVoiceUI();
+  syncVoiceUI(true);
   $('testVoice').addEventListener('click', async () => {
     const ac = audio(); if (!ac) return;
     unlockAudio();
     silence();
-    if (S.vtype === 'natural') {
-      if (!window.speechSynthesis) { $('voiceNote').textContent = "This browser has no built-in voice. Pick Computer voice instead."; return; }
-      browserSpeak(briefSpeech());
-      const v = pickNaturalVoice();
-      $('voiceNote').textContent = 'Using ' + (v ? v.name : 'your device voice') + '. It plays in preview; for the MP4 use Computer voice or your own recording.';
-      return;
-    }
     if (S.vtype === 'file') {
       if (!voiceFileBuf) { $('voiceNote').textContent = 'Choose a voice-over file first.'; return; }
       if (ac.state !== 'running') await ac.resume();
@@ -1246,8 +1414,7 @@
       $('voiceNote').textContent = 'Playing your recording (' + voiceFileBuf.duration.toFixed(1) + ' s).';
       return;
     }
-    if (!window.SamJs && window.speechSynthesis) browserSpeak(briefSpeech());
-    $('voiceNote').textContent = 'Loading voice…';
+    if (!voiceClips()) $('voiceNote').textContent = 'Loading voice…';
     const was = S.voice; S.voice = true;
     const ok = await prepareVoice(); S.voice = was;
     if (ok && voiceClips()) {
@@ -1333,7 +1500,12 @@
   buildFontMenu(); applyFont(); loadStoredFont();
 
   // ---------- start ----------
-  addEventListener('load', () => setTimeout(() => { if (S.voice) loadVoiceEngine().catch(() => {}); }, 300));
+  // get the chosen voice ready quietly in the background once the page has loaded
+  addEventListener('load', () => setTimeout(() => {
+    if (!S.voice) return;
+    if (S.vtype === 'human') loadHumanEngine(); else loadVoiceEngine().catch(() => {});
+    prepSoon();
+  }, 300));
   setSize();
   $('zoneRow').hidden = !S.zones;
   buildColorPickers();
