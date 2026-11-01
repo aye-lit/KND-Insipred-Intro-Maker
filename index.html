@@ -443,7 +443,7 @@
       col.addEventListener('input', () => { S.meterColors[i] = col.value; save(); });
       const nm = document.createElement('input'); nm.type = 'text'; nm.className = 'nm'; nm.value = m.name;
       nm.setAttribute('aria-label', 'Meter name');
-      nm.addEventListener('input', () => { const l = getMeters(); l[i].name = nm.value.replace(/[:\n]/g, '').trim().toLowerCase(); setMeters(l, false); });
+      nm.addEventListener('input', () => { const l = getMeters(); l[i].name = nm.value.replace(/[:\n]/g, '').trim(); setMeters(l, false); });
       const sl = document.createElement('input'); sl.type = 'range'; sl.min = 0; sl.max = 100; sl.step = 1;
       sl.value = m.v; sl.setAttribute('aria-label', 'Level for ' + m.name);
       const out = document.createElement('output'); out.textContent = m.v;
@@ -569,7 +569,7 @@
     const add = (n, lines, delay, gap) => {
       const seg = { n, start: t, lines: [] }; let c = t + delay;
       for (const { text, block } of lines) {
-        const line = { text: text.toLowerCase(), block, t0: c, times: [] };
+        const line = { text, block, t0: c, times: [] };
         for (const ch of line.text) { line.times.push(c); c += (ch === '.' ? 110 : 75) / sp; }
         seg.lines.push(line); c += gap / sp;
       }
@@ -589,7 +589,7 @@
         // original voice reads the whole briefing in one go; each line types at the pace it's spoken
         seg = { n: 2, start: t, lines: [] }; let c = t + 400;
         splitLines(S.brief).forEach((text, i) => {
-          const tx = text.toLowerCase();
+          const tx = text;
           const words = lineSpeech(text).split(/\s+/).filter(Boolean).length;
           const pause = /[-,.!?:;]\s*$/.test(text) ? 260 : 40;
           const dur = Math.max(words * 330, tx.length * 30);
@@ -602,7 +602,7 @@
         // each line types out exactly as long as its spoken clip lasts
         seg = { n: 2, start: t, lines: [] }; let c = t + 400;
         splitLines(S.brief).forEach((text, i) => {
-          const tx = text.toLowerCase(), clip = clips[i];
+          const tx = text, clip = clips[i];
           const dur = clip ? Math.max(clip.duration * 1000, tx.length * 30) : tx.length * 75 / sp;
           const line = { text: tx, block: 0, t0: c, times: [], clip };
           for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
@@ -680,7 +680,7 @@
   function parseStats() {
     return S.stats.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 6).map((l, i) => {
       const m = l.match(/^(.*?)[\s:=-]+(\d+(?:\.\d+)?)\s*%?$/);
-      const name = (m ? m[1] : l).trim().toLowerCase();
+      const name = (m ? m[1] : l).trim();
       const v = m ? Math.max(0, Math.min(100, parseFloat(m[2]))) : 100;
       return { name, v, i };
     });
@@ -733,7 +733,7 @@
       const p = Math.min((t - t0) / fillDur, 1);
       return { a: Math.min((t - t0) / 250, 1), p };
     };
-    const pi = stats.findIndex(st => st.name === 'power');
+    const pi = stats.findIndex(st => st.name.toLowerCase() === 'power');
     const power = pi >= 0 ? stats[pi] : null;
     const group = stats.filter((_, i) => i !== pi).slice(0, 4);
     ctx.save();
@@ -958,7 +958,7 @@
   // Both are rendered into the page's own audio so they record into the MP4.
   let voiceReady = null, voiceCache = { key: '', bufs: null };
   const isAIVoice = () => S.vtype === 'human' || S.vtype === 'robot';
-  const briefSpeech = () => splitLines(S.brief).join(' ').replace(/\s+-(\s|$)/g, ', ').replace(/\s+/g, ' ').trim();
+  const briefSpeech = () => splitLines(S.brief.toLowerCase()).join(' ').replace(/\s+-(\s|$)/g, ', ').replace(/\s+/g, ' ').trim();
   function loadVoiceEngine() {
     if (window.SamJs) return Promise.resolve();
     if (voiceReady) return voiceReady;
@@ -1125,7 +1125,7 @@
           const female = /^.f_/.test(S.hvoice), amt = S.robo / 100;
           bufs = [];
           for (const line of lines) {
-            const say = lineSpeech(line).replace(/[^a-zA-Z0-9 ,.?!']/g, ' ').trim();
+            const say = lineSpeech(line).toLowerCase().replace(/[^a-z0-9 ,.?!']/g, ' ').trim();
             if (!say) { bufs.push(null); continue; }
             const out = await tts.generate(say, { voice: S.hvoice });
             const sr = out.sampling_rate;
