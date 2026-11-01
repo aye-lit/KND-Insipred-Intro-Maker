@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Auditions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #000; --panel: #181818; --line: #333; --text: #eee; --muted: #999; --accent: #00ff66; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Inter", system-ui, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 28px 0 4px; }
+  p.note { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  label { display: block; color: var(--muted); font-size: 13px; margin: 0 0 5px; }
+  textarea { width: 100%; min-height: 64px; background: #0c0c0c; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: 15px "Inter", sans-serif; resize: vertical; }
+  .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .row label { margin: 0; }
+  input[type=range] { accent-color: var(--accent); width: 180px; }
+  .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  .v { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+       background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .v.playing { border-color: var(--accent); }
+  .num { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--accent); display: grid; place-items: center; font-weight: 600; font-size: 14px; }
+  .name { font-weight: 600; }
+  .desc { color: var(--muted); font-size: 12px; }
+  .tag { display: inline-block; font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; margin-left: 6px; color: var(--muted); }
+  .tag.rec { color: var(--accent); border-color: var(--accent); }
+  button { font: 600 14px "Inter", sans-serif; background: #111; color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #aiStatus { color: var(--muted); font-size: 13px; min-height: 1.4em; margin-top: 8px; }
+  .bar { height: 6px; background: #222; border-radius: 99px; overflow: hidden; margin-top: 6px; display: none; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .empty { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Voice auditions</h1>
+  <p class="note">Press ▶ on any voice to hear it read your briefing. Tell me the numbers you like and I'll add them to the intro maker.</p>
+
+  <div class="box">
+    <label for="txt">What the voice says</label>
+    <textarea id="txt">warning, sticky gum launcher, handle with care.</textarea>
+    <div class="row">
+      <label for="spd">Speed <span class="val" id="spdVal">1.1×</span></label>
+      <input id="spd" type="range" min="0.7" max="1.5" step="0.05" value="1.1">
+    </div>
+  </div>
+
+  <h2>AI voices <span class="tag rec">records into the MP4</span></h2>
+  <p class="note">These run inside your browser (Kokoro, a free AI voice model). The first time you press ▶ it downloads the voice model (about 90 MB) — after that it's saved and starts in a few seconds. Works best in Chrome or Edge on a computer.</p>
+  <div class="grid" id="aiList"></div>
+  <div class="bar" id="aiBar"><i></i></div>
+  <div id="aiStatus" role="status" aria-live="polite"></div>
+
+  <h2>Your device's voices <span class="tag">preview only</span></h2>
+  <p class="note">These are the voices built into this computer or browser. They sound good but browsers don't let them be recorded, so they only play in the preview. Edge has the most natural ones (Aria, Jenny, Michelle, Ava, Emma…).</p>
+  <div class="grid" id="devList"><div class="empty">Looking for voices…</div></div>
+</main>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+  const AI = [
+    ['af_heart', 'Heart', 'American woman, warm and clear'],
+    ['af_bella', 'Bella', 'American woman, bright and lively'],
+    ['af_nicole', 'Nicole', 'American woman, soft and breathy'],
+    ['af_aoede', 'Aoede', 'American woman, smooth'],
+    ['af_kore', 'Kore', 'American woman, steady'],
+    ['af_sarah', 'Sarah', 'American woman, calm'],
+    ['af_nova', 'Nova', 'American woman, crisp'],
+    ['bf_emma', 'Emma', 'British woman, polished'],
+    ['bf_isabella', 'Isabella', 'British woman, gentle'],
+    ['am_michael', 'Michael', 'American man, friendly'],
+    ['am_fenrir', 'Fenrir', 'American man, deep'],
+    ['am_puck', 'Puck', 'American man, upbeat'],
+    ['bm_george', 'George', 'British man, classic narrator'],
+    ['bm_fable', 'Fable', 'British man, storyteller']
+  ];
+  const speed = () => +$('spd').value;
+  $('spd').addEventListener('input', () => $('spdVal').textContent = speed().toFixed(2).replace(/0$/, '') + '×');
+  const text = () => $('txt').value.trim() || 'handle with care.';
+
+  let actx = null, current = null;
+  function stopAll() {
+    try { current && current.stop(); } catch (e) {}
+    current = null;
+    speechSynthesis.cancel();
+    document.querySelectorAll('.v.playing').forEach(el => el.classList.remove('playing'));
+  }
+  function card(list, n, name, desc, tags, onPlay) {
+    const el = document.createElement('div'); el.className = 'v';
+    el.innerHTML = `<div class="num">${n}</div><div><div class="name"></div><div class="desc"></div></div>`;
+    el.querySelector('.name').textContent = name;
+    el.querySelector('.name').insertAdjacentHTML('beforeend', tags);
+    el.querySelector('.desc').textContent = desc;
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '▶ Play';
+    b.setAttribute('aria-label', 'Play voice ' + n + ', ' + name);
+    b.addEventListener('click', () => onPlay(el, b));
+    el.append(b); list.append(el);
+  }
+
+  // ---------- AI voices (Kokoro) ----------
+  let ttsPromise = null;
+  async function getTTS() {
+    if (ttsPromise) return ttsPromise;
+    ttsPromise = (async () => {
+      let mod;
+      try { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'); }
+      catch (e) { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1/+esm'); }
+      const bar = $('aiBar'), fill = bar.querySelector('i'); bar.style.display = 'block';
+      const files = {};
+      const tts = await mod.KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+        dtype: 'q8', device: 'wasm',
+        progress_callback: p => {
+          if (p.status === 'progress' && p.total) {
+            files[p.file] = [p.loaded, p.total];
+            const v = Object.values(files), got = v.reduce((a, x) => a + x[0], 0), all = v.reduce((a, x) => a + x[1], 0);
+            fill.style.width = Math.round(got / all * 100) + '%';
+            $('aiStatus').textContent = `Downloading the voice model… ${Math.round(got / 1e6)} of ${Math.round(all / 1e6)} MB (one time only)`;
+          }
+        }
+      });
+      bar.style.display = 'none';
+      return tts;
+    })();
+    ttsPromise.catch(() => { ttsPromise = null; });
+    return ttsPromise;
+  }
+  const cache = new Map();
+  AI.forEach(([id, name, desc], i) => card($('aiList'), i + 1, name, desc, '', async (el, b) => {
+    stopAll();
+    b.disabled = true; const label = b.textContent; b.textContent = '…';
+    try {
+      $('aiStatus').textContent = 'Loading the voice model…';
+      const tts = await getTTS();
+      const key = id + '|' + speed() + '|' + text();
+      let audio = cache.get(key);
+      if (!audio) {
+        $('aiStatus').textContent = `Making voice ${i + 1} (${name})…`;
+        audio = await tts.generate(text(), { voice: id, speed: speed() });
+        cache.set(key, audio);
+      }
+      actx = actx || new AudioContext();
+      if (actx.state === 'suspended') await actx.resume();
+      const data = audio.audio, rate = audio.sampling_rate;
+      const buf = actx.createBuffer(1, data.length, rate); buf.copyToChannel(data, 0);
+      const src = actx.createBufferSource(); src.buffer = buf; src.connect(actx.destination);
+      src.onended = () => { el.classList.remove('playing'); if (current === src) current = null; };
+      current = src; el.classList.add('playing'); src.start();
+      $('aiStatus').textContent = `Playing voice ${i + 1}: ${name}`;
+    } catch (err) {
+      console.error(err);
+      $('aiStatus').textContent = "Couldn't load the AI voices on this browser. Try Chrome or Edge on a computer.";
+      $('aiBar').style.display = 'none';
+    }
+    b.disabled = false; b.textContent = label;
+  }));
+
+  // ---------- device voices ----------
+  let built = false;
+  function buildDevice() {
+    const all = speechSynthesis.getVoices();
+    if (!all.length) return;
+    const list = all.filter(v => /^en/i.test(v.lang) && !/zira/i.test(v.name));
+    list.sort((a, b) => (/natural|online|neural/i.test(b.name) - /natural|online|neural/i.test(a.name)) || a.name.localeCompare(b.name));
+    const box = $('devList'); box.innerHTML = ''; built = true;
+    if (!list.length) { box.innerHTML = '<div class="empty">No English voices found on this device.</div>'; return; }
+    list.forEach((v, i) => {
+      const n = AI.length + i + 1;
+      const nice = v.name.replace(/^Microsoft\s+/i, '').replace(/\s*-\s*English.*$/i, '').replace(/\s*\(.*\)$/, '');
+      const tags = /natural|neural/i.test(v.name) ? '<span class="tag">natural</span>' : '';
+      card(box, n, nice, v.lang + (v.localService ? '' : ' · online'), tags, (el) => {
+        stopAll();
+        const u = new SpeechSynthesisUtterance(text());
+        u.voice = v; u.rate = speed(); u.pitch = 1.05;
+        u.onend = u.onerror = () => el.classList.remove('playing');
+        el.classList.add('playing');
+        speechSynthesis.speak(u);
+      });
+    });
+  }
+  if ('speechSynthesis' in window) {
+    buildDevice();
+    speechSynthesis.addEventListener('voiceschanged', buildDevice);
+    setTimeout(() => { if (!built) $('devList').innerHTML = '<div class="empty">No device voices found in this browser.</div>'; }, 3000);
+  } else {
+    $('devList').innerHTML = '<div class="empty">This browser has no built-in voices.</div>';
+  }
+</script>
+</body>
+</html>
