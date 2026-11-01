@@ -6,7 +6,7 @@
 <title>Mission Intro Template (settings preview)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@600&family=Inter:wght@400;600&family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --ui-bg: #111; --ui-panel: #181818; --ui-line: #333;
@@ -109,13 +109,25 @@
   body.editing .panel > .preview { margin-left: -20px; margin-right: -20px; max-width: none; padding-left: max(20px, calc((100vw - 1100px) / 2)); padding-right: max(20px, calc((100vw - 1100px) / 2)); }
   body.editing .panel header { padding-top: 12px; }
   body.editing .toolbar { top: calc(var(--pv-h) - 56px); bottom: auto; }
+  /* one settings section at a time, packed tight so it fits without scrolling */
+  .fields > fieldset:not(.on) { display: none; }
+  body.editing .panel header { display: none; }
+  body.editing .panel .preview { margin-bottom: 12px; }
+  .tabs button { padding: 8px 2px; }
+  .panel fieldset { margin: 0; padding: 10px 14px 14px; }
+  .panel fieldset label { margin: 8px 0 4px; }
+  .panel fieldset .check { margin-top: 8px; }
+  .panel .mcolors { gap: 6px; }
+  .panel .mrow .nm { padding: 4px 8px; }
+  #f-brief { min-height: 150px; }
   /* wide screens: preview on the left, settings in their own scrolling column on the right */
   @media (min-width: 900px) {
-    :root { --set-w: clamp(380px, 34vw, 500px); }
+    :root { --set-w: clamp(400px, 36vw, 540px); }
     body.editing #stage { top: 0; left: 0; right: auto; bottom: auto; width: calc(100vw - var(--set-w)); height: calc(100% - 84px); }
     body.editing .panel {
       top: 0; bottom: 0; left: auto; right: 0; width: var(--set-w);
       border-top: none; border-left: 1px solid var(--ui-line);
+      padding-bottom: 16px;
     }
     body.editing .panel > * { max-width: none; }
     body.editing .panel > .preview { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
@@ -127,43 +139,6 @@
   .file { font-size: 13px; color: var(--ui-muted); margin-top: 6px; }
   .reset { background: none; border: none; color: var(--ui-muted); text-decoration: underline; cursor: pointer; font: 13px "Inter", sans-serif; padding: 0; }
   @media (prefers-reduced-motion: reduce) { .panel, .toolbar, .status { transition: none; } }
-  /* ---- Display Studio look for the settings ---- */
-  :root { --ds-red: #f32c2c; --ds-bg: #eef0f4; --ds-surface: #fff; --ds-ink: #000; --ds-line: #d6dae4;
-    --ds-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif; --ds-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-    --ds-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; --accent: var(--ds-red); }
-  .btn.primary { color: #fff; }
-  .panel { background: var(--ds-bg); color: var(--ds-ink); border-color: var(--ds-red); font: 15px/1.55 var(--ds-body); color-scheme: light; }
-  body.editing .panel { border-color: var(--ds-red); }
-  .panel h2 { font: 700 22px var(--ds-display); letter-spacing: .02em; }
-  .panel .btn { font: 600 14px var(--ds-body); padding: 8px 14px; border-radius: 8px; background: transparent; color: var(--ds-ink); border: 1px solid var(--ds-red); }
-  .panel #closeBtn { background: var(--ds-red); color: #fff; }
-  .panel .preview { background: var(--ds-bg); border-bottom: 1px solid var(--ds-line); }
-  .panel .tabs { display: flex; gap: 0; border: 1px solid var(--ds-red); border-radius: 8px; overflow: hidden; }
-  .panel .tabs button { border: 0; border-radius: 0; background: var(--ds-surface); color: var(--ds-ink); font: 500 13px var(--ds-mono); padding: 8px 6px; }
-  .panel .tabs button + button { border-left: 1px solid var(--ds-red); }
-  .panel .tabs button[aria-pressed="true"] { background: var(--ds-red); color: #fff; }
-  .panel p.note { color: var(--ds-ink); font-size: 13px; border: 1px solid var(--ds-red); border-radius: 10px; padding: 6px 12px; }
-  .panel fieldset { background: var(--ds-surface); border: 1px solid var(--ds-red); border-radius: 12px; padding: 18px; margin: 0 0 20px; }
-  .panel legend { float: left; width: 100%; padding: 0; margin: 0 0 6px; font: 700 13px var(--ds-display); letter-spacing: .14em; text-transform: uppercase; color: var(--ds-ink); }
-  .panel legend + * { clear: both; }
-  .panel label { color: var(--ds-ink); font-size: 13px; font-weight: 700; margin: 12px 0 4px; }
-  .panel label .val { font: 500 12px var(--ds-mono); color: var(--ds-ink); }
-  .panel .check { color: var(--ds-ink); font-weight: 500; font-size: 13px; }
-  .panel input[type=text], .panel textarea { background: var(--ds-surface); color: var(--ds-ink); border: 1px solid var(--ds-line); border-radius: 8px; font: 15px var(--ds-body); }
-  .panel input[type=text]:hover, .panel textarea:hover, .panel select:hover { border-color: var(--ds-red); }
-  .panel select { font: 500 13px var(--ds-mono); padding: 8px 30px 8px 10px; border-radius: 8px; border: 1px solid var(--ds-line); color: var(--ds-ink); cursor: pointer;
-    -webkit-appearance: none; appearance: none; background-color: var(--ds-surface);
-    background-image: linear-gradient(45deg, transparent 50%, var(--ds-ink) 50%), linear-gradient(135deg, var(--ds-ink) 50%, transparent 50%);
-    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
-  .panel input[type=color] { width: 30px; height: 22px; flex: 0 0 30px; border: 1px solid var(--ds-line); border-radius: 5px; padding: 0; }
-  .panel input[type=file] { font: 13px var(--ds-body); color: var(--ds-ink); }
-  .panel .file { color: var(--ds-ink); font-size: 12px; }
-  .panel .reset { color: var(--ds-ink); font: 600 13px var(--ds-body); text-decoration: none; border: 1px solid var(--ds-red); border-radius: 8px; padding: 5px 10px; margin-top: 10px; }
-  .panel .mrow { background: var(--ds-surface); border-color: var(--ds-line); }
-  .panel .mrow input[type=color] { width: 30px; height: 22px; }
-  .panel .mrow .del { color: var(--ds-ink); }
-  .panel .mrow output { font: 500 12px var(--ds-mono); color: var(--ds-ink); }
-  .panel .preview .off { color: var(--ds-ink); }
 </style>
 </head>
 <body>
@@ -183,16 +158,17 @@
   <div class="preview">
     <canvas id="mini" aria-label="Live preview of your changes"></canvas>
     <div class="tabs" role="group" aria-label="Preview part">
-      <button type="button" data-pv="1" aria-pressed="true">1 · Title</button>
-      <button type="button" data-pv="2" aria-pressed="false">2 · Briefing</button>
-      <button type="button" data-pv="3" aria-pressed="false">3 · Model</button>
+      <button type="button" data-tab="title" data-pv="1" aria-pressed="true">Title</button>
+      <button type="button" data-tab="brief" data-pv="2" aria-pressed="false">Briefing</button>
+      <button type="button" data-tab="model" data-pv="3" aria-pressed="false">Model</button>
+      <button type="button" data-tab="meters" data-pv="3" aria-pressed="false">Meters</button>
+      <button type="button" data-tab="video" aria-pressed="false">Video</button>
     </div>
     <div class="off" id="pvNote"></div>
   </div>
-  <p class="note">The screen updates as you type. Press Play to watch the whole thing, or Save MP4 to record it for Premiere.</p>
 
   <div class="fields">
-  <fieldset>
+  <fieldset data-tab="video">
     <legend>Video size</legend>
     <select id="f-format" data-k="format" aria-label="Video size">
       <option value="land">Landscape 1920 × 1080</option>
@@ -200,7 +176,7 @@
     </select>
   </fieldset>
 
-  <fieldset data-part="1">
+  <fieldset data-part="1" data-tab="title" class="on">
     <legend><input type="checkbox" data-k="s1on" aria-label="Include title card"> 1 · Title card</legend>
     <label for="f-top">Top line</label>
     <input id="f-top" type="text" data-k="top">
@@ -211,7 +187,7 @@
     <label class="check"><input type="checkbox" data-k="dots"> Add dots between letters (g.u.m…)</label>
   </fieldset>
 
-  <fieldset data-part="2">
+  <fieldset data-part="2" data-tab="brief">
     <legend><input type="checkbox" data-k="s2on" aria-label="Include briefing"> 2 · Briefing</legend>
     <label for="f-brief">Text — each line types on its own row</label>
     <textarea id="f-brief" data-k="brief"></textarea>
@@ -232,38 +208,10 @@
     </div>
   </fieldset>
 
-  <fieldset data-part="3">
+  <fieldset data-part="3" data-tab="model">
     <legend><input type="checkbox" data-k="s3on" aria-label="Include model reveal"> 3 · Model reveal</legend>
     <label for="f-head">Heading — each line on its own row</label>
     <textarea id="f-head" data-k="head" style="min-height:80px"></textarea>
-    <label class="check"><input type="checkbox" data-k="statsOn"> Show stat readouts</label>
-    <label for="f-layout">Meter layout</label>
-    <select id="f-layout" data-k="layout">
-      <option value="column">Column of bars</option>
-      <option value="group">Group of 4 + big power meter</option>
-    </select>
-    <div class="row">
-      <div><label for="f-pwx">Big meter ← →</label><input id="f-pwx" type="range" min="-50" max="85" step="1" data-k="pwX"></div>
-      <div><label for="f-pwy">Big meter ↑ ↓</label><input id="f-pwy" type="range" min="-50" max="40" step="1" data-k="pwY"></div>
-    </div>
-    <div class="row">
-      <div><label for="f-grx">Group ← →</label><input id="f-grx" type="range" min="-70" max="30" step="1" data-k="grX"></div>
-      <div><label for="f-gry">Group ↑ ↓</label><input id="f-gry" type="range" min="-50" max="40" step="1" data-k="grY"></div>
-    </div>
-    <button class="reset" id="resetPos" type="button">Reset meter positions</button>
-    <label class="check"><input type="checkbox" data-k="zones"> Split the power meter into 3 sections</label>
-    <div class="row" id="zoneRow">
-      <div style="flex:0 0 auto"><label for="f-z1">Low</label><input id="f-z1" type="color" data-k="z1"></div>
-      <div style="flex:0 0 auto"><label for="f-z2">Middle</label><input id="f-z2" type="color" data-k="z2"></div>
-      <div style="flex:0 0 auto"><label for="f-z3">High</label><input id="f-z3" type="color" data-k="z3"></div>
-      <div></div>
-    </div>
-    <label>Meters — name one "power" to put it on the big meter (up to 6)</label>
-    <div class="mcolors" id="meterColors"></div>
-    <div class="row" style="justify-content:space-between">
-      <button class="btn" id="addMeter" type="button" style="flex:0 0 auto">+ Add meter</button>
-      <button class="reset" id="matchColors" type="button" style="flex:0 0 auto">Match all to the line color</button>
-    </div>
     <label for="f-file">Model file (.stl, .obj or .glb)</label>
     <input id="f-file" type="file" accept=".stl,.obj,.glb">
     <div class="file" id="fileName">Using placeholder cube</div>
@@ -304,15 +252,45 @@
     </div>
   </fieldset>
 
-  <fieldset>
+  <fieldset data-part="3" data-tab="meters">
+    <legend><input type="checkbox" data-k="statsOn" aria-label="Show stat meters"> Stat meters</legend>
+    <label for="f-layout" style="margin-top:0">Meter layout</label>
+    <select id="f-layout" data-k="layout">
+      <option value="column">Column of bars</option>
+      <option value="group">Group of 4 + big power meter</option>
+    </select>
+    <div class="row">
+      <div><label for="f-pwx">Big meter ← →</label><input id="f-pwx" type="range" min="-50" max="85" step="1" data-k="pwX"></div>
+      <div><label for="f-pwy">Big meter ↑ ↓</label><input id="f-pwy" type="range" min="-50" max="40" step="1" data-k="pwY"></div>
+    </div>
+    <div class="row">
+      <div><label for="f-grx">Group ← →</label><input id="f-grx" type="range" min="-70" max="30" step="1" data-k="grX"></div>
+      <div><label for="f-gry">Group ↑ ↓</label><input id="f-gry" type="range" min="-50" max="40" step="1" data-k="grY"></div>
+    </div>
+    <button class="reset" id="resetPos" type="button">Reset meter positions</button>
+    <label class="check"><input type="checkbox" data-k="zones"> Split the power meter into 3 sections</label>
+    <div class="row" id="zoneRow">
+      <div style="flex:0 0 auto"><label for="f-z1">Low</label><input id="f-z1" type="color" data-k="z1"></div>
+      <div style="flex:0 0 auto"><label for="f-z2">Middle</label><input id="f-z2" type="color" data-k="z2"></div>
+      <div style="flex:0 0 auto"><label for="f-z3">High</label><input id="f-z3" type="color" data-k="z3"></div>
+      <div></div>
+    </div>
+    <label>Meters — name one "power" to put it on the big meter (up to 6)</label>
+    <div class="mcolors" id="meterColors"></div>
+    <div class="row" style="justify-content:space-between">
+      <button class="btn" id="addMeter" type="button" style="flex:0 0 auto">+ Add meter</button>
+      <button class="reset" id="matchColors" type="button" style="flex:0 0 auto">Match all to the line color</button>
+    </div>
+  </fieldset>
+
+  <fieldset data-tab="video">
     <legend>Timing</legend>
     <label for="f-speed">Typing speed</label>
     <input id="f-speed" type="range" min="0.4" max="2.5" step="0.1" data-k="speed">
     <label for="f-hold">Pause between scenes</label>
     <input id="f-hold" type="range" min="0.5" max="5" step="0.1" data-k="hold">
+    <button class="reset" id="resetBtn" type="button" style="margin-top:14px">Reset to example text</button>
   </fieldset>
-
-  <button class="reset" id="resetBtn" type="button">Reset to example text</button>
   </div>
 </aside>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1090,34 +1068,19 @@
   }
   function setPreview(n) {
     pvPart = n;
-    document.querySelectorAll('[data-pv]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.pv === n)));
     TL = buildTimeline(); idleT = idleTime();
   }
-  // clicking a part tab jumps the settings to that part
-  let jumpUntil = 0;
-  // where the bottom of the pinned tabs sits once the settings are scrolled
-  const stuckBottom = () => { const pv = $('panel').querySelector('.preview'); return $('panel').getBoundingClientRect().top + (parseFloat(getComputedStyle(pv).top) || 0) + pv.offsetHeight; };
-  function jumpTo(n) {
-    const panel = $('panel'), f = panel.querySelector(`fieldset[data-part="${n}"]`);
-    if (!f) return;
-    const stickyBottom = stuckBottom();
-    const y = panel.scrollTop + f.getBoundingClientRect().top - stickyBottom - 14;
-    jumpUntil = performance.now() + 900;
-    panel.scrollTo({ top: Math.max(0, y), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  // one settings section at a time: the tabs switch which section is shown
+  function showTab(t) {
+    document.querySelectorAll('[data-tab]').forEach(el => {
+      if (el.tagName === 'BUTTON') el.setAttribute('aria-pressed', String(el.dataset.tab === t));
+      else el.classList.toggle('on', el.dataset.tab === t);
+    });
+    const b = document.querySelector(`.tabs [data-tab="${t}"]`);
+    if (b && b.dataset.pv) setPreview(+b.dataset.pv);
+    $('panel').scrollTop = 0;
   }
-  document.querySelectorAll('[data-pv]').forEach(b => b.addEventListener('click', () => { setPreview(+b.dataset.pv); jumpTo(+b.dataset.pv); }));
-  // scrolling through the settings keeps the tab (and preview) on the part you're looking at
-  $('panel').addEventListener('scroll', () => {
-    if (performance.now() < jumpUntil) return;
-    const panel = $('panel'), line = stuckBottom() + 40;
-    let n = 0;
-    panel.querySelectorAll('fieldset[data-part]').forEach(f => { if (f.getBoundingClientRect().top <= line) n = +f.dataset.part; });
-    if (panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 4) n = 3;
-    if (n && n !== pvPart) setPreview(n);
-  }, { passive: true });
-  document.querySelectorAll('fieldset[data-part]').forEach(f => f.addEventListener('focusin', () => {
-    const n = +f.dataset.part; if (n !== pvPart) setPreview(n);
-  }));
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
   new MutationObserver(() => { document.body.classList.toggle('editing', panelOpen()); $('editBtn').textContent = panelOpen() ? 'Done' : 'Edit'; })
     .observe($('panel'), { attributes: true, attributeFilter: ['class'] });
   const mini = $('mini'), mctx = mini.getContext('2d');
