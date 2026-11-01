@@ -169,6 +169,14 @@
 
   <div class="fields">
   <fieldset data-tab="video">
+    <legend>Text font</legend>
+    <select id="f-font" aria-label="Text font"></select>
+    <label for="f-fontfile">Or upload your own font (.ttf, .otf, .woff, .woff2)</label>
+    <input id="f-fontfile" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2">
+    <div class="file" id="fontNote" role="status"></div>
+  </fieldset>
+
+  <fieldset data-tab="video">
     <legend>Video size</legend>
     <select id="f-format" data-k="format" aria-label="Video size">
       <option value="land">Landscape 1920 × 1080</option>
@@ -300,7 +308,27 @@
 <script>
   const $ = id => document.getElementById(id);
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const FONT = '"Exo 2", "Trebuchet MS", Arial, sans-serif';
+  // fonts for the on-screen text: [label, family, weight]. All free Google Fonts.
+  const FONTS = {
+    exo2: ['Exo 2 (default)', 'Exo 2', 600],
+    orbitron: ['Orbitron', 'Orbitron', 600],
+    oxanium: ['Oxanium', 'Oxanium', 600],
+    rajdhani: ['Rajdhani', 'Rajdhani', 600],
+    chakra: ['Chakra Petch', 'Chakra Petch', 600],
+    audiowide: ['Audiowide', 'Audiowide', 400],
+    russo: ['Russo One', 'Russo One', 400],
+    bungee: ['Bungee', 'Bungee', 400],
+    montserrat: ['Montserrat', 'Montserrat', 600],
+    sharetech: ['Share Tech Mono', 'Share Tech Mono', 400],
+    spacemono: ['Space Mono', 'Space Mono', 700],
+    robotomono: ['Roboto Mono', 'Roboto Mono', 600],
+    vt323: ['VT323 (pixel terminal)', 'VT323', 400],
+    press: ['Press Start 2P (pixel)', 'Press Start 2P', 400],
+    marker: ['Permanent Marker', 'Permanent Marker', 400]
+  };
+  const CUSTOM_FAMILY = 'Intro Custom Font';
+  let customFontName = '';
+  let FONT = '"Exo 2", "Trebuchet MS", Arial, sans-serif', FONT_W = 600;
 
   // ---------- settings ----------
   const DEFAULTS = {
@@ -308,7 +336,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -396,7 +424,7 @@
   });
   $('matchColors').addEventListener('click', () => { S.meterColors = []; save(); buildColorPickers(); });
   $('resetBtn').addEventListener('click', () => {
-    S = { ...DEFAULTS, meterColors: [] }; save(); buildColorPickers(); applyView();
+    S = { ...DEFAULTS, meterColors: [] }; save(); buildColorPickers(); applyView(); buildFontMenu(); applyFont();
     document.querySelectorAll('[data-k]').forEach(el => el._set());
     onSettingsChange('format');
   });
@@ -560,7 +588,7 @@
   }
 
   // ---------- drawing ----------
-  const font = size => `600 ${size}px ${FONT}`;
+  const font = size => `${FONT_W} ${size}px ${FONT}`;
   function fitSize(lines, base, maxW, maxH, gaps = 0) {
     let size = base;
     ctx.font = font(100);
@@ -1119,6 +1147,7 @@
 
   async function playWithVoice(done) {
     audio(); if (actx && actx.state === 'suspended') actx.resume();
+    await fontReady;
     await prepareVoice();
     play(done);
   }
@@ -1156,6 +1185,7 @@
     const chunks = [];
     audio();
     if (actx && actx.state === 'suspended') await actx.resume();
+    await fontReady;
     await prepareVoice();
     const video = canvas.captureStream(30);
     const stream = new MediaStream([...video.getVideoTracks(), ...(recDest ? recDest.stream.getAudioTracks() : [])]);
@@ -1235,6 +1265,73 @@
   document.addEventListener('pointerdown', e => { if (playing && !e.target.closest('.toolbar')) stop(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') stop(); });
 
+  // ---------- fonts ----------
+  let fontReady = Promise.resolve();
+  const fontLinks = {};
+  function applyFont() {
+    const f = S.font === 'custom' && customFontName ? null : (FONTS[S.font] || FONTS.exo2);
+    const fam = f ? f[1] : CUSTOM_FAMILY, w = f ? f[2] : 400;
+    FONT = `"${fam}", "Trebuchet MS", Arial, sans-serif`; FONT_W = w;
+    if (f && !fontLinks[fam]) {
+      const l = document.createElement('link'); l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=' + fam.replace(/ /g, '+') + ':wght@' + w + '&display=swap';
+      document.head.appendChild(l); fontLinks[fam] = l;
+    }
+    const want = `${w} 64px "${fam}"`;
+    fontReady = (document.fonts ? new Promise(res => {
+      const tryLoad = (n) => document.fonts.load(want).then(r => (r.length || n <= 0) ? res() : setTimeout(() => tryLoad(n - 1), 150)).catch(() => res());
+      tryLoad(20);
+    }) : Promise.resolve()).then(() => { if (!playing) { TL = buildTimeline(); idleT = idleTime(); } });
+    $('fontNote').textContent = S.font === 'custom'
+      ? (customFontName ? 'Using your font: ' + customFontName : 'Upload your font file again to use it.')
+      : '';
+  }
+  function buildFontMenu() {
+    const sel = $('f-font'); sel.innerHTML = '';
+    for (const [k, [label]] of Object.entries(FONTS)) sel.add(new Option(label, k));
+    if (customFontName) sel.add(new Option('My font: ' + customFontName, 'custom'));
+    sel.value = S.font === 'custom' && !customFontName ? 'exo2' : (S.font in FONTS || S.font === 'custom' ? S.font : 'exo2');
+  }
+  $('f-font').addEventListener('input', () => { S.font = $('f-font').value; save(); applyFont(); });
+  // uploaded fonts are kept in this browser (IndexedDB) so they survive a reload
+  const fontDB = () => new Promise((res, rej) => {
+    const r = indexedDB.open('intro-template-fonts', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('f');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  async function storeFont(name, buf) {
+    try { const db = await fontDB(); db.transaction('f', 'readwrite').objectStore('f').put({ name, buf }, 'custom'); } catch (e) {}
+  }
+  async function loadStoredFont() {
+    try {
+      const db = await fontDB();
+      const rec = await new Promise(res => { const q = db.transaction('f').objectStore('f').get('custom'); q.onsuccess = () => res(q.result); q.onerror = () => res(null); });
+      if (rec && rec.buf) await useFontBuffer(rec.name, rec.buf, false);
+    } catch (e) {}
+  }
+  async function useFontBuffer(name, buf, select) {
+    const face = new FontFace(CUSTOM_FAMILY, buf);
+    await face.load();
+    for (const f of [...document.fonts]) if (f.family.replace(/"/g, '') === CUSTOM_FAMILY && f !== face) document.fonts.delete(f);
+    document.fonts.add(face);
+    customFontName = name;
+    if (select) { S.font = 'custom'; save(); }
+    buildFontMenu(); applyFont();
+  }
+  $('f-fontfile').addEventListener('change', async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const name = file.name.replace(/\.(ttf|otf|woff2?)$/i, '');
+    try {
+      const buf = await file.arrayBuffer();
+      await useFontBuffer(name, buf, true);
+      storeFont(name, buf);
+    } catch (err) {
+      $('fontNote').textContent = "Couldn't read that font file. Try a .ttf, .otf, .woff or .woff2.";
+    }
+    e.target.value = '';
+  });
+  buildFontMenu(); applyFont(); loadStoredFont();
+
   // ---------- start ----------
   addEventListener('load', () => setTimeout(() => { if (S.voice) loadVoiceEngine().catch(() => {}); }, 300));
   setSize();
@@ -1242,7 +1339,6 @@
   buildColorPickers();
   TL = buildTimeline(); idleT = idleTime();
   requestAnimationFrame(frame);
-  (document.fonts ? document.fonts.load(font(64)) : Promise.resolve()).catch(() => {});
 
   (async () => {
     if (canRecord) $('saveBtn').hidden = false;
