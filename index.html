@@ -373,7 +373,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'human', hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -384,7 +384,7 @@
   if (!S.layout) { S.layout = DEFAULTS.layout; if (S.stats === 'power: 85\nrange: 60\nstability: 72\naccuracy: 90') S.stats = DEFAULTS.stats; }
   if (typeof S.mscale !== 'number') S.mscale = 100;
   if (typeof S.voice !== 'boolean') S.voice = true;
-  if (!S.vtype) S.vtype = 'human';
+  if (!S.vtype) S.vtype = 'natural';
   if (S.vtype === 'computer') S.vtype = 'robot';
   if (!S.hvoice) S.hvoice = 'af_heart';
   if (typeof S.robo !== 'number') S.robo = 0;
