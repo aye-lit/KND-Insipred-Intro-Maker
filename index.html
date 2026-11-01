@@ -204,6 +204,7 @@
     <select id="f-vtype" data-k="vtype">
       <option value="human">Human-like AI voice</option>
       <option value="robot">Robotic AI voice</option>
+      <option value="natural">Original voice (your device's voice, preview only)</option>
       <option value="file">My own recording</option>
     </select>
     <div class="row" id="humanRow">
@@ -383,7 +384,7 @@
   if (!S.layout) { S.layout = DEFAULTS.layout; if (S.stats === 'power: 85\nrange: 60\nstability: 72\naccuracy: 90') S.stats = DEFAULTS.stats; }
   if (typeof S.mscale !== 'number') S.mscale = 100;
   if (typeof S.voice !== 'boolean') S.voice = true;
-  if (!S.vtype || S.vtype === 'natural') S.vtype = 'human';
+  if (!S.vtype) S.vtype = 'human';
   if (S.vtype === 'computer') S.vtype = 'robot';
   if (!S.hvoice) S.hvoice = 'af_heart';
   if (typeof S.robo !== 'number') S.robo = 0;
@@ -584,7 +585,20 @@
     if (S.s2on) {
       const clips = S.voice && isAIVoice() ? voiceClips() : null;
       let seg;
-      if (clips) {
+      if (S.voice && S.vtype === 'natural' && window.speechSynthesis) {
+        // original voice reads the whole briefing in one go; each line types at the pace it's spoken
+        seg = { n: 2, start: t, lines: [] }; let c = t + 400;
+        splitLines(S.brief).forEach((text, i) => {
+          const tx = text.toLowerCase();
+          const words = lineSpeech(text).split(/\s+/).filter(Boolean).length;
+          const pause = /[-,.!?:;]\s*$/.test(text) ? 260 : 40;
+          const dur = Math.max(words * 330, tx.length * 30);
+          const line = { text: tx, block: 0, t0: c, times: [], say: i === 0 ? briefSpeech() : null };
+          for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
+          seg.lines.push(line); c += dur + pause;
+        });
+        seg.typedEnd = c;
+      } else if (clips) {
         // each line types out exactly as long as its spoken clip lasts
         seg = { n: 2, start: t, lines: [] }; let c = t + 400;
         splitLines(S.brief).forEach((text, i) => {
@@ -1220,7 +1234,11 @@
       }
       if (ks.sceneEnd && seg.lines.length) ks.sceneEnd(t0 + (seg.typedEnd + 60) / 1000);
       const delayMs = at => Math.max(0, (t0 - actx.currentTime) * 1000 + at);
-      if (seg.n === 2 && S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
+      if (seg.n === 2 && S.voice && S.vtype === 'natural' && window.speechSynthesis) {
+        try { speechSynthesis.cancel(); } catch (e) {}
+        for (const l of seg.lines) if (l.say) voiceTimers.push(setTimeout(() => browserSpeak(l.say, true), delayMs(l.t0)));
+      }
+      else if (seg.n === 2 && S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
         const src = keep(actx.createBufferSource()); src.buffer = voiceFileBuf; src.connect(master); src.start(t0 + seg.fileAt / 1000);
       }
       else if (seg.n === 2 && S.voice && isAIVoice() && voiceClips()) { for (const l of seg.lines) if (l.clip) speakAt(t0 + l.t0 / 1000, l.clip); }
@@ -1407,6 +1425,13 @@
     const ac = audio(); if (!ac) return;
     unlockAudio();
     silence();
+    if (S.vtype === 'natural') {
+      if (!window.speechSynthesis) { $('voiceNote').textContent = "This browser has no built-in voice. Pick an AI voice instead."; return; }
+      browserSpeak(briefSpeech());
+      const v = pickNaturalVoice();
+      $('voiceNote').textContent = 'Using ' + (v ? v.name : 'your device voice') + '. It plays in preview; for the MP4 use an AI voice or your own recording.';
+      return;
+    }
     if (S.vtype === 'file') {
       if (!voiceFileBuf) { $('voiceNote').textContent = 'Choose a voice-over file first.'; return; }
       if (ac.state !== 'running') await ac.resume();
