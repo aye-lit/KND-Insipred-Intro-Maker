@@ -150,8 +150,86 @@
           ctx.fillStyle = steel(ctx, x, 0, x + w, 0, '#70757d', '#3c4046'); ctx.fillRect(x, 0, w, H);
           ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x, 0, Math.max(1, w * 0.08), H);
         }
+      } },
+
+    // ---------- gears ----------
+    { name: 'Gear doors', ease: true, close: 620, hold: 260, open: 680,
+      desc: 'Two steel doors slide together while big gears built into their edges spin, then the teeth mesh in the middle.',
+      draw(ctx, W, H, c) {
+        const half = W / 2 * c, R = H * 0.095, teeth = 12, travel = W / 2 * c;
+        for (const side of [-1, 1]) {
+          const w = W / 2, x = side < 0 ? half - w : W - half, edge = side < 0 ? x + w : x;
+          ctx.fillStyle = steel(ctx, x, 0, x + w, 0); ctx.fillRect(x, 0, w, H);
+          ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = W / 400;
+          for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(x, H * k / 4); ctx.lineTo(x + w, H * k / 4); ctx.stroke(); }
+          // three gears on the door's leading edge; they roll as the door moves and line up so their teeth mesh
+        }
+        // gears go on top of both doors; left and right gears sit at staggered heights so they interlock when the doors meet
+        for (const side of [-1, 1]) {
+          const edge = side < 0 ? half : W - half;
+          (side < 0 ? [0.125, 0.375, 0.625, 0.875] : [0.25, 0.5, 0.75]).forEach(f => {
+            const ang = (side < 0 ? 1 : -1) * travel / R + (side > 0 ? Math.PI / teeth : 0);
+            gear(ctx, edge - side * R * 0.55, H * f, R, teeth, ang, { body: '#8a9099', dark: '#3d4147', edge: '#c3cad2' });
+          });
+        }
+      } },
+    { name: 'Gear wall', ease: false, close: 700, hold: 240, open: 700,
+      desc: 'A wall of meshing gears grows in from the edges and fills the screen, all turning together, then spins back out.',
+      draw(ctx, W, H, c, now) {
+        const R = H * 0.13, step = R * 1.82, cx = W / 2, cy = H / 2, far = Math.hypot(cx, cy), spin = now / 600;
+        // dark backplate fades in behind the gears so the screen is fully covered when closed
+        ctx.fillStyle = 'rgba(20,22,25,' + clamp(c * 1.4 - 0.4) + ')'; ctx.fillRect(0, 0, W, H);
+        for (let row = -1; row * step < H + R; row++) {
+          for (let col = -1; col * step < W + R; col++) {
+            const x = col * step + (Math.abs(row) % 2 ? step / 2 : 0), y = row * step * 0.87;
+            const d = 1 - Math.hypot(x - cx, y - cy) / far;              // 0 at the corners, 1 in the middle
+            const s = easeOutBack(clamp(c * 1.7 - d * 0.7));
+            if (s <= 0.01) continue;
+            const dir = (row + col) % 2 ? 1 : -1;                          // neighbours turn the opposite way
+            gear(ctx, x, y, R * Math.min(s, 1.08), 10, dir * spin + (dir > 0 ? Math.PI / 10 : 0),
+              { body: (row + col) % 3 ? '#6b717a' : '#7d838c', dark: '#2c2f34', edge: '#aeb6bf' });
+          }
+        }
+      } },
+    { name: 'Giant gear', ease: false, close: 640, hold: 240, open: 700,
+      desc: 'One huge gear rolls in from the left and covers the screen, then keeps rolling off to the right to show the next part.',
+      draw(ctx, W, H, c, now, opening) {
+        const R = Math.hypot(W, H) / 2 * 1.06, e = easeIO(clamp(c));
+        // rolls in from the left while closing, out to the right while opening
+        const x = opening ? W / 2 + (1 - e) * (W / 2 + R) : -R + e * (W / 2 + R);
+        gear(ctx, x, H / 2, R, 34, -x / R, { body: '#5f646c', dark: '#24272b', edge: '#b9c0c8', solid: true });
       } }
   ];
+
+  // gear: toothed wheel with hub, spokes and bolts. solid=true keeps it fully opaque (no see-through holes).
+  function gear(ctx, x, y, R, teeth, ang, o) {
+    const tooth = R * 0.14, inner = R - tooth;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a = i / teeth * Math.PI * 2, s = Math.PI * 2 / teeth;
+      ctx.lineTo(Math.cos(a) * inner, Math.sin(a) * inner);
+      ctx.lineTo(Math.cos(a + s * 0.18) * R, Math.sin(a + s * 0.18) * R);
+      ctx.lineTo(Math.cos(a + s * 0.48) * R, Math.sin(a + s * 0.48) * R);
+      ctx.lineTo(Math.cos(a + s * 0.66) * inner, Math.sin(a + s * 0.66) * inner);
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R);
+    g.addColorStop(0, o.body); g.addColorStop(1, o.dark);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = Math.max(1, R / 60); ctx.strokeStyle = o.edge; ctx.stroke();
+    // rim groove, hub and spokes
+    ctx.beginPath(); ctx.arc(0, 0, inner * 0.86, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = Math.max(1, R / 30); ctx.stroke();
+    const holes = o.solid ? 0 : 5;
+    for (let k = 0; k < 5; k++) {   // spoke windows (dark, drawn as recesses)
+      const a = k / 5 * Math.PI * 2 + 0.6;
+      ctx.beginPath(); ctx.arc(Math.cos(a) * inner * 0.52, Math.sin(a) * inner * 0.52, inner * 0.2, 0, Math.PI * 2);
+      ctx.fillStyle = holes ? '#16181b' : 'rgba(0,0,0,.35)'; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, inner * 0.24, 0, Math.PI * 2); ctx.fillStyle = o.dark; ctx.fill(); ctx.strokeStyle = o.edge; ctx.lineWidth = Math.max(1, R / 70); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, inner * 0.09, 0, Math.PI * 2); ctx.fillStyle = o.edge; ctx.fill();
+    ctx.restore();
+  }
 
   function amountAt(o, u, showFor) {   // returns [scene offset, close amount]
     if (u <= showFor) return [0, 0];
@@ -169,7 +247,7 @@
       const t = (now - t0) % (cycle * 3), k = Math.floor(t / cycle), u = t - k * cycle;
       const [off, c] = amountAt(o, u, showFor);
       scene(ctx, cv.width, cv.height, (k + off) % 3);
-      if (c > 0) o.draw(ctx, cv.width, cv.height, o.ease ? easeIO(c) : c, now);
+      if (c > 0) o.draw(ctx, cv.width, cv.height, o.ease ? easeIO(c) : c, now, off === 1);
       requestAnimationFrame(tick);
     })(t0);
   });
