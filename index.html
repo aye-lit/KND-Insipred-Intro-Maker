@@ -614,15 +614,17 @@
       const clips = S.voice && isAIVoice() ? voiceClips() : null;
       let seg;
       if (S.voice && S.vtype === 'natural' && window.speechSynthesis) {
-        // original voice reads the whole briefing in one go; each line types at the pace it's spoken
+        // original voice says each line as the line types, so text and voice stay in step line by line.
+        // Each line types for as long as the voice took to say it last time (measured), or an estimate the first time.
         seg = { n: 2, start: t, lines: [] }; let c = t + 400;
         splitLines(S.brief).forEach((text, i) => {
-          const tx = text;
-          const words = lineSpeech(text).split(/\s+/).filter(Boolean).length;
+          const tx = text, say = lineSpeech(text).toLowerCase();
+          const words = say.split(/\s+/).filter(Boolean).length;
           const bs = S.bspeed || 1;
-          const pause = (/[-,.!?:;]\s*$/.test(text) ? 260 : 40) / bs;
-          const dur = Math.max(words * 330, tx.length * 30) / bs;
-          const line = { text: tx, block: 0, t0: c, times: [], say: i === 0 ? briefSpeech() : null };
+          const pause = (/[-,.!?:;]\s*$/.test(text) ? 200 : 90) / bs;
+          const measured = say ? natTimes.get(natKey(say)) : null;
+          const dur = measured || Math.max(words * 330, tx.length * 30) / bs;
+          const line = { text: tx, block: 0, t0: c, times: [], say: say || null };
           for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
           seg.lines.push(line); c += dur + pause;
         });
@@ -1294,12 +1296,26 @@
     return en[0] || null;
   }
   try { window.speechSynthesis && speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {}; } catch (e) {}
+  // How long the original voice takes to say each line (learned as it talks), and how long it takes to start.
+  const natTimes = new Map(); let natLag = 120;
+  const natRate = () => Math.min(4, 1.1 * (S.bspeed || 1));
+  function natKey(text) { const v = pickNaturalVoice(); return (v ? v.name : '') + '|' + natRate().toFixed(2) + '|' + text; }
   function browserSpeak(text, queue) {
     try {
       if (!queue) speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.rate = Math.min(4, 1.1 * (S.bspeed || 1)); u.pitch = 1.05; u.volume = 1;
+      u.rate = natRate(); u.pitch = 1.05; u.volume = 1;
       const v = pickNaturalVoice(); if (v) u.voice = v;
+      const key = natKey(text), asked = performance.now(), wasIdle = !speechSynthesis.speaking; let began = 0;
+      u.onstart = () => { began = performance.now(); if (wasIdle) natLag = natLag * 0.6 + Math.min(600, began - asked) * 0.4; };
+      u.onend = () => {
+        if (!began) return;
+        const ms = performance.now() - began;
+        if (ms > 80 && ms < 20000) {
+          const had = natTimes.get(key); natTimes.set(key, had ? had * 0.4 + ms * 0.6 : ms);
+          if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
+        }
+      };
       speechSynthesis.speak(u);
     } catch (e) {}
   }
@@ -1364,7 +1380,7 @@
       const delayMs = at => Math.max(0, (t0 - actx.currentTime) * 1000 + at);
       if (seg.n === 2 && S.voice && S.vtype === 'natural' && window.speechSynthesis) {
         try { speechSynthesis.cancel(); } catch (e) {}
-        for (const l of seg.lines) if (l.say) voiceTimers.push(setTimeout(() => browserSpeak(l.say, true), delayMs(l.t0)));
+        for (const l of seg.lines) if (l.say) voiceTimers.push(setTimeout(() => browserSpeak(l.say, true), Math.max(0, delayMs(l.t0) - natLag)));
       }
       else if (seg.n === 2 && S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
         const src = keep(actx.createBufferSource()); src.buffer = voiceFileBuf; src.connect(master); src.start(t0 + seg.fileAt / 1000);
@@ -1587,7 +1603,8 @@
     silence();
     if (S.vtype === 'natural') {
       if (!window.speechSynthesis) { $('voiceNote').textContent = "This browser has no built-in voice. Pick an AI voice instead."; return; }
-      browserSpeak(briefSpeech());
+      speechSynthesis.cancel();
+      splitLines(S.brief).forEach(l => { const say = lineSpeech(l).toLowerCase(); if (say) browserSpeak(say, true); });
       const v = pickNaturalVoice();
       $('voiceNote').textContent = 'Using ' + (v ? v.name : 'your device voice') + '. It plays in preview; for the MP4 use an AI voice or your own recording.';
       return;
