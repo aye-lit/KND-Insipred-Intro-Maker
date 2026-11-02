@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transition Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #000; color: #eee; font: 15px/1.5 "Inter", system-ui, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  p.note { color: #999; font-size: 13px; margin: 4px 0 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #181818; border: 1px solid #333; border-radius: 12px; padding: 12px; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; display: flex; gap: 10px; align-items: center; }
+  .num { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid #00ff66; display: grid; place-items: center; font-size: 13px; }
+  canvas { width: 100%; aspect-ratio: 16 / 9; display: block; background: #000; border-radius: 8px; }
+  .desc { color: #999; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Transition preview</h1>
+  <p class="note">Each one loops through the three parts: it closes over one part and opens on the next. Tell me the number you like.</p>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+  // ---------- stand-in scenes (same look as the intro maker) ----------
+  function scene(ctx, W, H, n) {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic';
+    const f = s => `600 ${s}px "Exo 2", "Trebuchet MS", Arial, sans-serif`;
+    if (n === 0) {
+      ctx.textAlign = 'center'; ctx.font = f(H * 0.085);
+      ctx.fillText('ayelit presents', W / 2, H * 0.36); ctx.fillText('operation:', W / 2, H * 0.56); ctx.fillText('g.u.m.z.o.o.k.a.', W / 2, H * 0.67);
+    } else if (n === 1) {
+      ctx.textAlign = 'left'; ctx.font = f(H * 0.075);
+      ['warning -', 'sticky', 'gum', 'launcher -', 'handle with care.'].forEach((l, i) => ctx.fillText(l, W * 0.36, H * 0.24 + i * H * 0.13));
+    } else {
+      const st = Math.round(Math.min(W, H) / 27);
+      ctx.strokeStyle = 'rgba(170,170,170,.55)'; ctx.lineWidth = Math.max(1, st / 18); ctx.beginPath();
+      for (let x = (W / 2) % st; x <= W; x += st) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = (H / 2) % st; y <= H; y += st) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+      ctx.stroke();
+      const t = performance.now() / 1000, s = H * 0.18, c = [W / 2, H * 0.42];
+      const P = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(([x, y, z]) => {
+        const ca = Math.cos(t), sa = Math.sin(t), X = x * ca - z * sa, Z = x * sa + z * ca, Y = y * 0.94 - Z * 0.34;
+        return [c[0] + X * s, c[1] + Y * s];
+      });
+      ctx.strokeStyle = '#39ff6a'; ctx.lineWidth = Math.max(1, H / 300); ctx.beginPath();
+      [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(([a, b]) => { ctx.moveTo(...P[a]); ctx.lineTo(...P[b]); });
+      ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = f(H * 0.06);
+      ctx.fillText('model', W * 0.36, H * 0.8); ctx.fillText('file - g.u.m.z.o.o.k.a.', W * 0.36, H * 0.88);
+    }
+  }
+
+  // ---------- helpers ----------
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const easeIO = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  const easeOutBack = x => { const k = 1.6; return 1 + (k + 1) * Math.pow(x - 1, 3) + k * Math.pow(x - 1, 2); };
+  function steel(ctx, x0, y0, x1, y1, a = '#6b717a', b = '#3a3e44') { const g = ctx.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, a); g.addColorStop(0.5, b); g.addColorStop(1, a); return g; }
+  function hazard(ctx, x, y, w, h, s) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.fillStyle = '#f2c230'; ctx.fillRect(x, y, w, h); ctx.fillStyle = '#111';
+    for (let k = -h; k < w + h; k += s * 2) { ctx.beginPath(); ctx.moveTo(x + k, y); ctx.lineTo(x + k + s, y); ctx.lineTo(x + k + s - h, y + h); ctx.lineTo(x + k - h, y + h); ctx.fill(); }
+    ctx.restore();
+  }
+  function rivets(ctx, pts, r) { for (const [x, y] of pts) { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = '#9aa1aa'; ctx.fill(); ctx.beginPath(); ctx.arc(x - r * .3, y - r * .3, r * .45, 0, 7); ctx.fillStyle = '#d8dde3'; ctx.fill(); } }
+
+  // ---------- closers: draw(ctx, W, H, c, now) with c = 0 open ... 1 fully closed ----------
+  // ease: true means the close amount is eased before drawing; false means the style handles its own motion
+  const STYLES = [
+    { name: 'Blast doors', ease: true, close: 420, hold: 220, open: 520,
+      desc: 'Two heavy steel doors slam together from the sides, with hazard stripes and a small shake when they meet.',
+      draw(ctx, W, H, c, now) {
+        const half = W / 2 * c, sh = c > 0.98 ? Math.sin(now / 18) * W * 0.003 : 0;
+        for (const side of [-1, 1]) {
+          const w = W / 2, x = side < 0 ? half - w + sh : W - half + sh;
+          ctx.fillStyle = steel(ctx, x, 0, x + w, 0); ctx.fillRect(x, 0, w, H);
+          ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = W / 400;
+          for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(x, H * k / 4); ctx.lineTo(x + w, H * k / 4); ctx.stroke(); }
+          hazard(ctx, side < 0 ? x + w - W * 0.035 : x, 0, W * 0.035, H, W * 0.02);
+          const rx = side < 0 ? x + w * 0.12 : x + w * 0.88;
+          rivets(ctx, [0.1, 0.3, 0.5, 0.7, 0.9].map(f => [rx, H * f]), W / 180);
+        }
+      } },
+    { name: 'Toothed jaws', ease: true, close: 380, hold: 220, open: 480,
+      desc: 'Top and bottom plates with interlocking teeth bite shut, like a big machine clamp.',
+      draw(ctx, W, H, c) {
+        const n = 9, tw = W / n, th = H * 0.09, reach = (H / 2 + th / 2) * c;
+        // top plate: teeth point down at the gaps
+        let e = reach - th / 2;
+        ctx.beginPath(); ctx.moveTo(-2, -2); ctx.lineTo(W + 2, -2); ctx.lineTo(W + 2, e);
+        for (let i = n - 1; i >= 0; i--) { const x0 = i * tw; ctx.lineTo(x0 + tw * 0.75, e); ctx.lineTo(x0 + tw * 0.5, e + th); ctx.lineTo(x0 + tw * 0.25, e); }
+        ctx.lineTo(-2, e); ctx.closePath();
+        ctx.fillStyle = steel(ctx, 0, 0, 0, e + th, '#575c64', '#2b2e33'); ctx.fill(); ctx.lineWidth = W / 500; ctx.strokeStyle = '#9aa3ad'; ctx.stroke();
+        // bottom plate: teeth point up, offset so they mesh
+        e = H - reach + th / 2;
+        ctx.beginPath(); ctx.moveTo(-2, H + 2); ctx.lineTo(W + 2, H + 2); ctx.lineTo(W + 2, e);
+        for (let i = n; i >= 0; i--) { const xm = i * tw; ctx.lineTo(xm + tw * 0.25, e); ctx.lineTo(xm, e - th); ctx.lineTo(xm - tw * 0.25, e); }
+        ctx.lineTo(-2, e); ctx.closePath();
+        ctx.fillStyle = steel(ctx, 0, H, 0, e - th, '#575c64', '#2b2e33'); ctx.fill(); ctx.stroke();
+      } },
+    { name: 'Four-way hatch', ease: true, close: 460, hold: 200, open: 520,
+      desc: 'Four triangular plates fold in from every edge and lock in the middle, with a green seam when sealed.',
+      draw(ctx, W, H, c) {
+        const cx = W / 2, cy = H / 2;
+        [[[0, 0], [W, 0]], [[W, 0], [W, H]], [[W, H], [0, H]], [[0, H], [0, 0]]].forEach(([a, b], i) => {
+          const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, tx = mx + (cx - mx) * c, ty = my + (cy - my) * c;
+          ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.lineTo(tx, ty); ctx.closePath();
+          ctx.fillStyle = steel(ctx, mx, my, tx, ty, i % 2 ? '#5f646c' : '#686d75', '#2c2f34'); ctx.fill();
+          ctx.lineWidth = W / 450; ctx.strokeStyle = c > 0.97 ? '#39ff6a' : '#9aa3ad'; ctx.stroke();
+        });
+      } },
+    { name: 'Roll-down shutter', ease: false, close: 560, hold: 200, open: 560,
+      desc: 'A ridged metal shutter rolls down from the top and bounces as it lands, then rolls back up.',
+      draw(ctx, W, H, c) {
+        const y = H * easeOutBack(clamp(c)) - H, slat = H / 14;
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, Math.max(0, y + H)); ctx.clip();
+        ctx.fillStyle = '#3a3e44'; ctx.fillRect(0, 0, W, Math.max(0, y + H));   // solid backing so nothing shows between slats
+        for (let s = 0; s < 16; s++) { const sy = y + s * slat; ctx.fillStyle = steel(ctx, 0, sy, 0, sy + slat, '#7a7f87', '#40444a'); ctx.fillRect(0, sy - 1, W, slat + 2); ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, sy + slat - H / 300, W, H / 300); }
+        const by = y + H - slat * 0.8; ctx.fillStyle = '#2a2d31'; ctx.fillRect(0, by, W, slat * 0.8); hazard(ctx, 0, by + slat * 0.15, W, slat * 0.35, W * 0.015);
+        ctx.restore();
+      } },
+    { name: 'Hex tiles', ease: false, close: 560, hold: 160, open: 560,
+      desc: 'Dark hexagon tiles with green edges snap in from the outside toward the center, like a force field.',
+      draw(ctx, W, H, c) {
+        const r = Math.min(W, H) / 9, hw = Math.sqrt(3) * r, cx = W / 2, cy = H / 2, far = Math.hypot(cx, cy);
+        for (let row = -1; row * r * 1.5 < H + r * 2; row++) {
+          const y = row * r * 1.5;
+          for (let col = -1; col * hw < W + hw; col++) {
+            const x = col * hw + (Math.abs(row) % 2 ? hw / 2 : 0);
+            const d = 1 - Math.hypot(x - cx, y - cy) / far;
+            const s = easeIO(clamp(c * 1.6 - d * 0.6));
+            if (s <= 0) continue;
+            ctx.beginPath();
+            for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * r * s * 1.02, y + Math.sin(a) * r * s * 1.02); }
+            ctx.closePath(); ctx.fillStyle = '#0b120d'; ctx.fill(); ctx.lineWidth = W / 600; ctx.strokeStyle = '#39ff6a'; ctx.stroke();
+          }
+        }
+      } },
+    { name: 'Venetian slats', ease: false, close: 520, hold: 180, open: 520,
+      desc: 'Tall metal slats flip shut one after another from left to right, then flip open again.',
+      draw(ctx, W, H, c) {
+        const n = 12, sw = W / n;
+        for (let i = 0; i < n; i++) {
+          const p = easeIO(clamp(c * 1.5 - i / n * 0.5)), w = sw * p * 1.02, x = i * sw + (sw - w) / 2;
+          if (w <= 0) continue;
+          ctx.fillStyle = steel(ctx, x, 0, x + w, 0, '#70757d', '#3c4046'); ctx.fillRect(x, 0, w, H);
+          ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x, 0, Math.max(1, w * 0.08), H);
+        }
+      } }
+  ];
+
+  function amountAt(o, u, showFor) {   // returns [scene offset, close amount]
+    if (u <= showFor) return [0, 0];
+    if (u <= showFor + o.close) return [0, clamp((u - showFor) / o.close)];
+    if (u <= showFor + o.close + o.hold) return [0, 1];
+    return [1, 1 - clamp((u - showFor - o.close - o.hold) / o.open)];
+  }
+  STYLES.forEach((o, i) => {
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = '<h2><span class="num">' + (i + 1) + '</span>' + o.name + '</h2><canvas width="960" height="540"></canvas><div class="desc">' + o.desc + '</div>';
+    document.getElementById('grid').append(card);
+    const cv = card.querySelector('canvas'), ctx = cv.getContext('2d');
+    const showFor = 1400, cycle = showFor + o.close + o.hold + o.open, t0 = performance.now();
+    (function tick(now) {
+      const t = (now - t0) % (cycle * 3), k = Math.floor(t / cycle), u = t - k * cycle;
+      const [off, c] = amountAt(o, u, showFor);
+      scene(ctx, cv.width, cv.height, (k + off) % 3);
+      if (c > 0) o.draw(ctx, cv.width, cv.height, o.ease ? easeIO(c) : c, now);
+      requestAnimationFrame(tick);
+    })(t0);
+  });
+  window.__STYLES = STYLES; window.__scene = scene; window.__easeIO = easeIO;
+</script>
+</body>
+</html>
