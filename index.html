@@ -279,7 +279,8 @@
     <legend><input type="checkbox" data-k="s3on" aria-label="Include model reveal"> 3 · Model reveal</legend>
     <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal">▶ Play this part</button>
     <label for="f-head">Heading — each line on its own row</label>
-    <textarea id="f-head" data-k="head" style="min-height:80px"></textarea>
+    <textarea id="f-head" data-k="head" style="min-height:80px" rows="3"></textarea>
+    <label class="check"><input type="checkbox" data-k="headTitle"> Add the title as the last line: <span id="headTitleTxt" style="color:var(--ui-text)"></span></label>
     <label for="f-file">Model file (.stl, .obj or .glb)</label>
     <input id="f-file" type="file" accept=".stl,.obj,.glb">
     <div class="file" id="fileName">Using placeholder cube</div>
@@ -398,7 +399,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headTitle: true, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -414,6 +415,7 @@
   if (!S.hvoice) S.hvoice = 'af_heart';
   if (typeof S.robo !== 'number') S.robo = 0;
   if (typeof S.bspeed !== 'number') S.bspeed = 1;
+  if (typeof S.headTitle !== 'boolean') S.headTitle = true;
   if (!S.rvoice) S.rvoice = 'classic';
   if (typeof S.zones !== 'boolean') { S.zones = DEFAULTS.zones; S.z1 = DEFAULTS.z1; S.z2 = DEFAULTS.z2; S.z3 = DEFAULTS.z3; }
   if (!S.view) S.view = 'front';
@@ -650,7 +652,7 @@
     }
     if (S.s3on) {
       const lines = splitLines(S.head).map(text => ({ text, block: 0 }));
-      if (S.title.trim()) lines.push({ text: titleText(), block: 0 });
+      if (S.headTitle && S.title.trim()) lines.push({ text: titleText(), block: 0 });
       const seg = add(3, lines, 500, 250);
       seg.modelStart = seg.typedEnd;
       seg.end = seg.modelStart + Math.max(S.turn * 1000, 4400) + 800;
@@ -1435,6 +1437,8 @@
     const b = document.querySelector(`.tabs [data-tab="${t}"]`);
     if (b && b.dataset.pv) setPreview(+b.dataset.pv);
     $('panel').scrollTop = 0;
+    if (t === 'model') fitHead();
+    if (t === 'brief') fitBox($('f-brief'), 120, 260);
   }
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
   new MutationObserver(() => { document.body.classList.toggle('editing', panelOpen()); $('editBtn').textContent = panelOpen() ? 'Done' : 'Edit'; })
@@ -1445,7 +1449,16 @@
     if (mini.width !== w || mini.height !== h) { mini.width = w; mini.height = h; }
     mctx.drawImage(canvas, 0, 0, w, h);
   }
+  // the heading box grows to fit every line, and shows which title gets added under it
+  function fitBox(ta, min, max) { if (!ta || !ta.offsetParent) return; ta.style.height = 'auto'; ta.style.height = Math.min(max, Math.max(min, ta.scrollHeight + 2)) + 'px'; }
+  $('f-brief').addEventListener('input', () => fitBox($('f-brief'), 120, 260));
+  function fitHead() {
+    fitBox($('f-head'), 80, 240);
+    $('headTitleTxt').textContent = S.title.trim() ? titleText() : '(no title set)';
+  }
+  $('f-head').addEventListener('input', fitHead);
   function onSettingsChange(k) {
+    if (k === 'head' || k === 'title' || k === 'dots') fitHead();
     if (k === 'color') { material.color.set(S.color); buildColorPickers(); }
     if (k === 'sfx' || k === 'sfxVol' || k === 'musicVol') applyVolumes();
     if (k === 'format') setSize();
