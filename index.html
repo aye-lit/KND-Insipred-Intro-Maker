@@ -354,6 +354,7 @@
 <script>
   const $ = id => document.getElementById(id);
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var redraw = 0; function markDirty() { redraw++; }   // tells the idle preview to redraw
   // fonts for the on-screen text: [label, family, weight]. All free Google Fonts.
   const FONTS = {
     exo2: ['Exo 2 (default)', 'Exo 2', 600],
@@ -524,6 +525,7 @@
   }
 
   function setModel(obj, keepMaterials) {
+    markDirty();
     orient.clear();
     const meshes = []; obj.traverse(o => { if (o.isMesh) meshes.push(o); });
     meshes.forEach(m => {
@@ -983,10 +985,71 @@
   }
   // human-like model, loaded in the background
   let humanTTS = null, humanPct = 0, humanErr = null;
+  // The AI model runs in a background worker so making the voice never freezes the page.
+  const WORKER_SRC = `
+    let tts = null, loading = null;
+    async function load() {
+      if (tts) return tts;
+      if (!loading) loading = (async () => {
+        let mod;
+        try { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'); }
+        catch (e) { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1/+esm'); }
+        tts = await mod.KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+          dtype: 'q8', device: 'wasm',
+          progress_callback: p => { if (p && p.status === 'progress') self.postMessage({ type: 'progress', file: p.file, loaded: p.loaded, total: p.total }); }
+        });
+        return tts;
+      })();
+      return loading;
+    }
+    self.onmessage = async e => {
+      const { id, text, voice } = e.data;
+      try {
+        const t = await load();
+        if (!text) { self.postMessage({ id, type: 'done' }); return; }
+        const out = await t.generate(text, { voice });
+        const a = Float32Array.from(out.audio);
+        self.postMessage({ id, type: 'done', audio: a, sr: out.sampling_rate }, [a.buffer]);
+      } catch (err) { self.postMessage({ id, type: 'error', message: String(err && err.message || err) }); }
+    };`;
+  function workerEngine(onProgress) {
+    const url = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
+    const w = new Worker(url, { type: 'module' });
+    let seq = 0; const waiting = new Map();
+    const fail = msg => { for (const [, cb] of waiting) cb.rej(new Error(msg)); waiting.clear(); };
+    w.onmessage = e => {
+      const d = e.data;
+      if (d.type === 'progress') { onProgress(d); return; }
+      const cb = waiting.get(d.id); if (!cb) return; waiting.delete(d.id);
+      d.type === 'done' ? cb.res(d) : cb.rej(new Error(d.message));
+    };
+    w.onerror = e => { e.preventDefault && e.preventDefault(); fail('worker'); };
+    const ask = msg => new Promise((res, rej) => { const id = ++seq; waiting.set(id, { res, rej }); w.postMessage({ id, ...msg }); });
+    return ask({}).then(() => ({
+      generate: (text, { voice }) => ask({ text, voice }).then(d => ({ audio: d.audio, sampling_rate: d.sr }))
+    }));
+  }
   function loadHumanEngine() {
     if (humanTTS) return humanTTS;
     humanErr = null;
+    const files = {};
+    const onProgress = p => {
+      if (!p.total) return;
+      files[p.file] = [p.loaded, p.total];
+      const v = Object.values(files);
+      humanPct = Math.round(v.reduce((a, x) => a + x[0], 0) / v.reduce((a, x) => a + x[1], 0) * 100);
+      if (S.vtype === 'human' && !voiceClips()) $('voiceNote').textContent = 'Human-like voices getting ready… ' + humanPct + '%';
+    };
+    // try the background worker first; if this browser can't, fall back to running it on the page
     humanTTS = (async () => {
+      try { if (typeof Worker !== 'undefined') { const eng = await workerEngine(onProgress); humanPct = 100; return eng; } } catch (e) { console.warn('voice worker unavailable, using page', e); }
+      return mainThreadEngine();
+    })();
+    humanTTS.catch(e => { humanErr = e; humanTTS = null; });
+    return humanTTS;
+  }
+  function mainThreadEngine() {
+    return (async () => {
       let mod;
       try { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'); }
       catch (e) { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1/+esm'); }
@@ -1004,8 +1067,6 @@
       humanPct = 100;
       return tts;
     })();
-    humanTTS.catch(e => { humanErr = e; humanTTS = null; });
-    return humanTTS;
   }
 
   // ---- sound effects on raw samples ----
@@ -1320,14 +1381,23 @@
     if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
   }
 
+  // When nothing is playing the preview is a still picture, so only redraw it when something changes
+  // (this keeps the page smooth while editing instead of redrawing a full 1920x1080 frame 60 times a second).
+  let drawnSig = '';
+  ['input', 'change', 'click'].forEach(ev => document.addEventListener(ev, markDirty, true));
+  if (document.fonts) document.fonts.addEventListener('loadingdone', markDirty);
+  addEventListener('resize', markDirty);
+  let tlId = 0, lastTL = null;
   function frame(now) {
-    let t = idleT;
     if (playing) {
-      t = Math.max(0, now - playStart);
-      if (t >= TL.total) { t = TL.total; playing = false; const cb = onDone; onDone = null; draw(t); cb && cb(); }
+      let t = Math.max(0, now - playStart);
+      if (t >= TL.total) { t = TL.total; playing = false; const cb = onDone; onDone = null; draw(t); cb && cb(); markDirty(); }
+      else draw(t);
+    } else {
+      if (TL !== lastTL) { lastTL = TL; tlId++; }
+      const sig = tlId + '|' + idleT + '|' + W + 'x' + H + '|' + redraw;
+      if (sig !== drawnSig) { drawnSig = sig; draw(idleT); }
     }
-    draw(t);
-
     requestAnimationFrame(frame);
   }
 
