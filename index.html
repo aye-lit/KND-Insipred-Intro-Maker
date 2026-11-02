@@ -204,8 +204,14 @@
         <option value="hobby">Sound 3</option>
         <option value="industrial">Sound 4</option>
         <option value="twin">Sound 5</option>
+        <option value="file">My own sound</option>
         <option value="none">No sound</option>
       </select>
+      <div id="tfileRow" hidden>
+        <label for="f-tfile">Sound file (.mp3, .wav, .m4a, .ogg) — starts as the blades begin to close</label>
+        <input id="f-tfile" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg">
+        <div class="file" id="tfileNote" role="status">No file chosen yet.</div>
+      </div>
       <label for="f-irisspeed">Speed</label>
       <input id="f-irisspeed" type="range" min="0.4" max="2.5" step="0.05" data-k="irisSpeed">
       <div class="row">
@@ -520,6 +526,7 @@
     save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); TL = buildTimeline(); idleT = idleTime(); markDirty();
   });
   $('irisOpts').hidden = S.trans !== 'iris';
+  $('tfileRow').hidden = S.tsound !== 'file';
   $('resetModelPos').addEventListener('click', () => {
     for (const k of ['mX','mY','hX','hY']) S[k] = 0;
     save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); markDirty();
@@ -1206,8 +1213,29 @@
       tStep(sfxBus, at + c, 0.3); tStep(sfxBus, at + c + 0.035, 0.24);
       tSweep(L, open, o, 120, 1600 * k, 0.13, 'sawtooth', 2800, 50, 0.3); tSweep(R, open + 0.03, o - 0.03, 128, 1680 * k, 0.13, 'sawtooth', 2800, 50, 0.3);
     },
+    file(at) {   // the user's own sound, starting as the blades begin to close
+      if (!tFileBuf) return;
+      const src = keep(actx.createBufferSource()); src.buffer = tFileBuf; src.connect(sfxBus); src.start(at);
+    },
     none() {}
   };
+  // ---- uploaded transition sound: kept in this browser (IndexedDB) so it survives a reload ----
+  let tFileBuf = null, tFileName = '';
+  const audioDB = () => new Promise((res, rej) => { const r = indexedDB.open('intro-template-audio', 1); r.onupgradeneeded = () => r.result.createObjectStore('a'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  async function useTransFile(name, data, store) {
+    const ac = audio(); if (!ac) return;
+    const buf = await new Promise((res, rej) => ac.decodeAudioData(data.slice(0), res, rej));
+    tFileBuf = buf; tFileName = name;
+    $('tfileNote').textContent = 'Using ' + name + ' (' + buf.duration.toFixed(1) + ' s). Press ▶ Play transition to hear it.';
+    if (store) { try { const db = await audioDB(); db.transaction('a', 'readwrite').objectStore('a').put({ name, data }, 'trans'); } catch (e) {} }
+  }
+  async function loadTransFile() {
+    try {
+      const db = await audioDB();
+      const rec = await new Promise(res => { const q = db.transaction('a').objectStore('a').get('trans'); q.onsuccess = () => res(q.result); q.onerror = () => res(null); });
+      if (rec && rec.data) await useTransFile(rec.name, rec.data, false);
+    } catch (e) {}
+  }
   function irisSound(at) { (TSOUNDS[S.tsound] || TSOUNDS.whir)(at); }
   function irisSoundWhir(at) {
     const shut = at + IRIS.close / 1000, open = shut + IRIS.hold / 1000;
@@ -1707,6 +1735,7 @@
     if (k === 'view' || k === 'tilt') applyView();
     if (k === 'zones') $('zoneRow').hidden = !S.zones;
     if (k === 'trans') $('irisOpts').hidden = S.trans !== 'iris';
+    if (k === 'tsound') $('tfileRow').hidden = S.tsound !== 'file';
     if (['brief', 'hvoice', 'robo', 'rvoice', 'voice', 's2on', 'bspeed'].includes(k)) { if (k === 'voice' && S.voice && S.vtype === 'human') loadHumanEngine(); prepSoon(); }
     if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
   }
@@ -1976,6 +2005,15 @@
   buildFontMenu(); applyFont(); loadStoredFont();
 
   // ---------- start ----------
+  // transition sound upload
+  $('f-tfile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('tfileNote').textContent = 'Loading ' + f.name + '…';
+    try { await useTransFile(f.name, await f.arrayBuffer(), true); }
+    catch (err) { $('tfileNote').textContent = "That audio file couldn't be read. Try an MP3 or WAV."; }
+    e.target.value = '';
+  });
+  addEventListener('load', () => setTimeout(loadTransFile, 200));
   // get the chosen voice ready quietly in the background once the page has loaded
   addEventListener('load', () => setTimeout(() => {
     if (!S.voice) return;
