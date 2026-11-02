@@ -134,6 +134,11 @@
     body.editing .toolbar { top: auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: calc((100vw - var(--set-w)) / 2); }
   }
   .preview .off:empty { display: none; }
+  .panel fieldset[data-part] { position: relative; }
+  .partplay { position: absolute; top: -9px; right: 12px; font: 600 12px "Inter", sans-serif; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+    background: var(--ui-panel); color: var(--accent); border: 1px solid var(--accent); }
+  .partplay:hover { background: var(--accent); color: #000; }
+  .partplay[aria-pressed="true"] { background: var(--accent); color: #000; }
   label.hasval { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   label .val { color: var(--ui-text); font-variant-numeric: tabular-nums; font-weight: 600; }
   .file { font-size: 13px; color: var(--ui-muted); margin-top: 6px; }
@@ -186,6 +191,7 @@
 
   <fieldset data-part="1" data-tab="title" class="on">
     <legend><input type="checkbox" data-k="s1on" aria-label="Include title card"> 1 · Title card</legend>
+    <button class="partplay" type="button" data-play="1" aria-label="Play just the title card">▶ Play this part</button>
     <label for="f-top">Top line</label>
     <input id="f-top" type="text" data-k="top">
     <label for="f-label">Label</label>
@@ -197,6 +203,7 @@
 
   <fieldset data-part="2" data-tab="brief">
     <legend><input type="checkbox" data-k="s2on" aria-label="Include briefing"> 2 · Briefing</legend>
+    <button class="partplay" type="button" data-play="2" aria-label="Play just the briefing">▶ Play this part</button>
     <label for="f-brief">Text — each line types on its own row</label>
     <textarea id="f-brief" data-k="brief" style="min-height:120px"></textarea>
     <label class="check"><input type="checkbox" data-k="voice"> A voice reads the briefing</label>
@@ -255,6 +262,7 @@
 
   <fieldset data-part="3" data-tab="model">
     <legend><input type="checkbox" data-k="s3on" aria-label="Include model reveal"> 3 · Model reveal</legend>
+    <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal">▶ Play this part</button>
     <label for="f-head">Heading — each line on its own row</label>
     <textarea id="f-head" data-k="head" style="min-height:80px"></textarea>
     <label for="f-file">Model file (.stl, .obj or .glb)</label>
@@ -299,6 +307,7 @@
 
   <fieldset data-part="3" data-tab="meters">
     <legend><input type="checkbox" data-k="statsOn" aria-label="Show stat meters"> Stat meters</legend>
+    <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal with meters">▶ Play this part</button>
     <label for="f-layout" style="margin-top:0">Meter layout</label>
     <select id="f-layout" data-k="layout">
       <option value="column">Column of bars</option>
@@ -1336,17 +1345,25 @@
     await prepareVoice();
     play(done);
   }
-  function play(done) {
-    $('panel').classList.remove('open');
-    document.body.classList.add('hidden-ui');
-    TL = buildTimeline();
+  // build the timeline with only one part switched on (for the per-part test buttons)
+  function partTimeline(n) {
+    const was = [S.s1on, S.s2on, S.s3on];
+    S.s1on = n === 1; S.s2on = n === 2; S.s3on = n === 3;
+    try { return buildTimeline(); } finally { [S.s1on, S.s2on, S.s3on] = was; }
+  }
+  function play(done, part) {
+    if (!part) {
+      $('panel').classList.remove('open');
+      document.body.classList.add('hidden-ui');
+    }
+    TL = part ? partTimeline(part) : buildTimeline();
     silence();
     const ac = audio();
     const lead = 0.08;
     if (ac) { if (ac.state === 'suspended') ac.resume(); scheduleSound(ac.currentTime + lead); }
     playStart = performance.now() + lead * 1000;
     playing = true;
-    onDone = () => { document.body.classList.remove('hidden-ui'); idleT = idleTime(); done && done(); };
+    onDone = () => { document.body.classList.remove('hidden-ui'); if (part) TL = buildTimeline(); idleT = idleTime(); done && done(); };
   }
   function stop() {
     if (!playing) return;
@@ -1354,7 +1371,8 @@
     silence();
     if (recorder && recorder.state !== 'inactive') { recorder._cancelled = true; recorder.stop(); }
     document.body.classList.remove('hidden-ui');
-    idleT = idleTime(); hideStatus();
+    TL = buildTimeline(); idleT = idleTime(); hideStatus();
+    document.querySelectorAll('.partplay').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.textContent = '▶ Play this part'; });
   }
 
   const MIMES = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp9', 'video/webm'];
@@ -1399,6 +1417,19 @@
   }
 
   $('playBtn').addEventListener('click', () => playWithVoice());
+  // ▶ Play this part: plays just that section in the preview, settings stay open; press again to stop
+  document.querySelectorAll('.partplay').forEach(b => b.addEventListener('click', async () => {
+    if (b.getAttribute('aria-pressed') === 'true') { stop(); return; }
+    stop();
+    const n = +b.dataset.play;
+    audio(); if (actx && actx.state === 'suspended') actx.resume();
+    unlockAudio();
+    b.setAttribute('aria-pressed', 'true'); b.textContent = '■ Stop';
+    await fontReady;
+    if (n === 2) { const was = S.s2on; S.s2on = true; await prepareVoice(); S.s2on = was; }
+    if (b.getAttribute('aria-pressed') !== 'true') return;   // stopped while getting ready
+    play(() => { b.setAttribute('aria-pressed', 'false'); b.textContent = '▶ Play this part'; }, n);
+  }));
   const syncVoiceUI = (initial) => {
     $('vfileRow').hidden = S.vtype !== 'file';
     $('humanRow').hidden = S.vtype !== 'human';
@@ -1454,7 +1485,7 @@
     stop(); $('panel').classList.add('open'); setPreview(pvPart);
   });
   $('closeBtn').addEventListener('click', () => { $('panel').classList.remove('open'); TL = buildTimeline(); idleT = idleTime(); });
-  document.addEventListener('pointerdown', e => { if (playing && !e.target.closest('.toolbar')) stop(); });
+  document.addEventListener('pointerdown', e => { if (playing && !e.target.closest('.toolbar') && !e.target.closest('.panel')) stop(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') stop(); });
 
   // ---------- fonts ----------
