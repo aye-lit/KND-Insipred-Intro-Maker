@@ -64,11 +64,13 @@
   // First 35%: the housing zooms in from outside the frame. Remaining 65%: the blades spiral shut.
   function drawIris(ctx, W, H, c, o) {
     const cx = W / 2, cy = H / 2;
-    const z = easeOut(clamp(c / 0.35)), b = easeIO(clamp((c - 0.35) / 0.65));
-    const unit = H * 0.33 * (1 + (1 - z) * 2.6);           // pixels per housing radius; big = still off screen
+    const only = !!o.bladesOnly;
+    const z = only ? 1 : easeOut(clamp(c / 0.35)), b = only ? easeIO(clamp(c)) : easeIO(clamp((c - 0.35) / 0.65));
     const Ri = 1, Ro = 1.36, Rk = 1.43;                      // housing inner radius, ring outer radius, knurl edge
+    // blades only: the blade circle is just big enough to reach the screen corners, and the blades start off screen
+    const unit = only ? Math.hypot(W, H) / 2 / Rk * 1.02 : H * 0.33 * (1 + (1 - z) * 2.6);
     const N = o.blades, span = Math.PI * 2 / N * 2.5, bend = o.bend, Rc = 1.7;
-    const r = 1.02 * (1 - b);                                 // aperture radius (in housing units)
+    const r = (only ? Rk : 1.02) * (1 - b);                  // aperture radius (in housing units)
     const twist = o.twist * b;
     const U = v => v * unit;
     ctx.save(); ctx.translate(cx, cy);
@@ -96,7 +98,8 @@
       const hl = ctx.createRadialGradient(Math.cos(a) * U(r + 0.15), Math.sin(a) * U(r + 0.15), 0, Math.cos(a) * U(r + 0.15), Math.sin(a) * U(r + 0.15), U(0.55));
       hl.addColorStop(0, o.shine); hl.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = hl; ctx.fill();
-      // fine brushed lines
+      // fine brushed lines (kept inside the blade)
+      ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2); ctx.clip();
       ctx.strokeStyle = 'rgba(255,255,255,.035)'; ctx.lineWidth = 1;
       for (let k = 0; k < 14; k++) { ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc + 0.03 + k * 0.05), 0, Math.PI * 2); ctx.stroke(); }
       // bright inner (cutting) edge
@@ -113,10 +116,11 @@
       ctx.lineWidth = Math.max(1, unit / 180); ctx.strokeStyle = o.edgeSoft; ctx.stroke();
       ctx.restore();
     }
-    if (r < Ri + 0.01) {
+    if (only || r < Ri + 0.01) {
       for (let i = 0; i < N; i++) blade(i, false);
       blade(0, true);   // first blade's trailing half goes back on top of the last blade, like a real overlap
     }
+    if (only) { ctx.restore(); return; }
 
     // ---- housing ----
     // outer plate covering the corners
@@ -177,7 +181,7 @@
     }
   }
 
-  const STYLES = [
+  const HOUSED = [
     { name: 'Gunmetal iris', desc: '9 curved gunmetal blades in a black machined housing with engraved ticks, screws and a sliding lever.',
       blades: 9, twist: 0.9, bend: 0.55, close: 900, hold: 260, open: 900,
       b1: '#5a6069', b2: '#2b2e33', b3: '#4c5159', shine: 'rgba(255,255,255,.16)', edge: '#c9d0d8', edgeSoft: 'rgba(220,228,236,.55)',
@@ -194,6 +198,11 @@
       plate1: '#2a1f12', plate2: '#3d2e1a', knurl: '#5a4422', ring1: '#4a3518', ring2: '#1d140a', bevel: '#d6b16a', tick: '#f0d79a',
       screw1: '#f3dfae', screw2: '#8a6a32', lever1: '#9c7a3c', lever2: '#f3dfae' }
   ];
+
+  const STYLES = HOUSED.map(o => ({ ...o, bladesOnly: true, close: 720, hold: 220, open: 760,
+    desc: { 'Gunmetal iris': '9 curved gunmetal blades spiral in from the edges and meet in the middle.',
+            'Green-lit iris': '9 dark blades with glowing green edges, to match the wireframe.',
+            'Brass iris': '12 thinner polished-brass blades, a warmer look.' }[o.name] }));
 
   function amountAt(o, u, showFor) {
     if (u <= showFor) return [0, 0];
