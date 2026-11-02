@@ -134,6 +134,9 @@
     body.editing .toolbar { top: auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: calc((100vw - var(--set-w)) / 2); }
   }
   .preview .off:empty { display: none; }
+  .bladecols { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .bladecols label { margin: 0; display: grid; justify-items: center; gap: 2px; font-size: 11px; }
+  .bladecols input[type=color] { width: 34px; height: 30px; flex: none; }
   .vbar { height: 6px; background: #262626; border-radius: 99px; overflow: hidden; margin-top: 8px; }
   .vbar[hidden] { display: none; }
   .vbar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .25s ease; }
@@ -218,6 +221,11 @@
         <div style="flex:0 0 auto"><label for="f-irisc">Blade color</label><input id="f-irisc" type="color" data-k="irisC"></div>
         <div style="flex:0 0 auto"><label for="f-irise">Edge color</label><input id="f-irise" type="color" data-k="irisE"></div>
         <div></div>
+      </div>
+      <label class="check"><input type="checkbox" data-k="irisEach"> Pick a color for each blade</label>
+      <div id="bladeCols" hidden>
+        <div class="bladecols" id="bladeColList" role="group" aria-label="Color for each blade"></div>
+        <button class="reset" type="button" id="matchBlades">Match all to the blade color</button>
       </div>
       <button class="reset" type="button" id="resetIris">Reset to gunmetal</button>
     </div>
@@ -459,7 +467,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -480,6 +488,8 @@
   if (!S.tsound) S.tsound = 'whir';
   if (!S.irisC) S.irisC = '#4c5159';
   if (!S.irisE) S.irisE = '#c9d0d8';
+  if (!Array.isArray(S.irisCols)) S.irisCols = [];
+  if (typeof S.irisEach !== 'boolean') S.irisEach = false;
   // the model heading used to add the title under it automatically; now it's all in the box (keeps what was on screen)
   if (!S.headV2) {
     const tt = S.dots ? S.title.replace(/\s+/g, '').split('').join('.') + '.' : S.title;
@@ -522,10 +532,23 @@
     save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); markDirty();
   }));
   $('resetIris').addEventListener('click', () => {
-    S.irisSpeed = 1; S.irisC = DEFAULTS.irisC; S.irisE = DEFAULTS.irisE;
+    S.irisSpeed = 1; S.irisC = DEFAULTS.irisC; S.irisE = DEFAULTS.irisE; S.irisEach = false; S.irisCols = []; buildBladeCols();
     save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); TL = buildTimeline(); idleT = idleTime(); markDirty();
   });
   $('irisOpts').hidden = S.trans !== 'iris';
+  // one color picker per blade (numbered 1-9, going around clockwise from the right)
+  function buildBladeCols() {
+    const box = $('bladeColList'); box.innerHTML = '';
+    $('bladeCols').hidden = !S.irisEach;
+    for (let i = 0; i < 9; i++) {
+      const lab = document.createElement('label'), inp = document.createElement('input');
+      inp.type = 'color'; inp.value = S.irisCols[i] || S.irisC; inp.setAttribute('aria-label', 'Blade ' + (i + 1) + ' color');
+      inp.addEventListener('input', () => { for (let k = 0; k < 9; k++) if (!S.irisCols[k]) S.irisCols[k] = S.irisC; S.irisCols[i] = inp.value; save(); markDirty(); });
+      lab.append(inp, document.createTextNode(String(i + 1))); box.append(lab);
+    }
+  }
+  buildBladeCols();
+  $('matchBlades').addEventListener('click', () => { S.irisCols = []; save(); buildBladeCols(); markDirty(); });
   $('tfileRow').hidden = S.tsound !== 'file';
   $('resetModelPos').addEventListener('click', () => {
     for (const k of ['mX','mY','hX','hY']) S[k] = 0;
@@ -986,8 +1009,8 @@
       ctx.beginPath(); slice(a0, a1); ctx.clip();
       ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2);
       const g = ctx.createLinearGradient(Math.cos(a0) * U(1), Math.sin(a0) * U(1), Math.cos(a1) * U(1), Math.sin(a1) * U(1));
-      const dark = mixHex(S.irisC, 0, 0.45);
-      g.addColorStop(0, dark); g.addColorStop(0.45, i % 2 ? mixHex(S.irisC, 1, 0.1) : S.irisC); g.addColorStop(1, dark);
+      const base = S.irisEach ? (S.irisCols[i] || S.irisC) : S.irisC, dark = mixHex(base, 0, 0.45);
+      g.addColorStop(0, dark); g.addColorStop(0.45, !S.irisEach && i % 2 ? mixHex(base, 1, 0.1) : base); g.addColorStop(1, dark);
       ctx.fillStyle = g; ctx.fill();
       const hx = Math.cos(a) * U(r + 0.15), hy = Math.sin(a) * U(r + 0.15);
       const hl = ctx.createRadialGradient(hx, hy, 0, hx, hy, U(0.55));
@@ -1736,6 +1759,7 @@
     if (k === 'zones') $('zoneRow').hidden = !S.zones;
     if (k === 'trans') $('irisOpts').hidden = S.trans !== 'iris';
     if (k === 'tsound') $('tfileRow').hidden = S.tsound !== 'file';
+    if (k === 'irisEach' || k === 'irisC') buildBladeCols();
     if (['brief', 'hvoice', 'robo', 'rvoice', 'voice', 's2on', 'bspeed'].includes(k)) { if (k === 'voice' && S.voice && S.vtype === 'human') loadHumanEngine(); prepSoon(); }
     if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
   }
