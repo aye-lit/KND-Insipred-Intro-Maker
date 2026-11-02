@@ -207,6 +207,8 @@
     <label for="f-brief">Text — each line types on its own row</label>
     <textarea id="f-brief" data-k="brief" style="min-height:120px"></textarea>
     <label class="check"><input type="checkbox" data-k="voice"> A voice reads the briefing</label>
+    <div class="row">
+    <div>
     <label for="f-vtype">Voice</label>
     <select id="f-vtype" data-k="vtype">
       <option value="human">Human-like AI voice</option>
@@ -214,6 +216,12 @@
       <option value="natural">Original voice (your device's voice, preview only)</option>
       <option value="file">My own recording</option>
     </select>
+    </div>
+    <div>
+    <label for="f-bspeed">Speed</label>
+    <input id="f-bspeed" type="range" min="0.5" max="2" step="0.05" data-k="bspeed">
+    </div>
+    </div>
     <div class="row" id="humanRow">
       <div>
         <label for="f-hvoice">Human-like voice</label>
@@ -383,7 +391,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -398,6 +406,7 @@
   if (S.vtype === 'computer') S.vtype = 'robot';
   if (!S.hvoice) S.hvoice = 'af_heart';
   if (typeof S.robo !== 'number') S.robo = 0;
+  if (typeof S.bspeed !== 'number') S.bspeed = 1;
   if (!S.rvoice) S.rvoice = 'classic';
   if (typeof S.zones !== 'boolean') { S.zones = DEFAULTS.zones; S.z1 = DEFAULTS.z1; S.z2 = DEFAULTS.z2; S.z3 = DEFAULTS.z3; }
   if (!S.view) S.view = 'front';
@@ -412,7 +421,7 @@
     const k = el.dataset.k;
     const FMT = {
       speed: v => (+v).toFixed(1) + '×', hold: v => (+v).toFixed(1) + ' s', turn: v => (+v).toFixed(1) + ' s',
-      tilt: v => v + '°', mscale: v => v + '%', robo: v => +v === 0 ? 'off' : v + '%',
+      tilt: v => v + '°', mscale: v => v + '%', robo: v => +v === 0 ? 'off' : v + '%', bspeed: v => (+v).toFixed(2).replace(/0$/, '') + '×',
       pwX: v => (v > 0 ? '+' : '') + v, pwY: v => (v > 0 ? '+' : '') + v, grX: v => (v > 0 ? '+' : '') + v, grY: v => (v > 0 ? '+' : '') + v
     };
     let val = null;
@@ -577,7 +586,8 @@
   let TL = null;
   function buildTimeline() {
     const segs = []; let t = 0; const sp = S.speed, hold = S.hold * 1000;
-    const add = (n, lines, delay, gap) => {
+    const add = (n, lines, delay, gap, mult = 1) => {
+      const sp = S.speed * mult;
       const seg = { n, start: t, lines: [] }; let c = t + delay;
       for (const { text, block } of lines) {
         const line = { text, block, t0: c, times: [] };
@@ -602,8 +612,9 @@
         splitLines(S.brief).forEach((text, i) => {
           const tx = text;
           const words = lineSpeech(text).split(/\s+/).filter(Boolean).length;
-          const pause = /[-,.!?:;]\s*$/.test(text) ? 260 : 40;
-          const dur = Math.max(words * 330, tx.length * 30);
+          const bs = S.bspeed || 1;
+          const pause = (/[-,.!?:;]\s*$/.test(text) ? 260 : 40) / bs;
+          const dur = Math.max(words * 330, tx.length * 30) / bs;
           const line = { text: tx, block: 0, t0: c, times: [], say: i === 0 ? briefSpeech() : null };
           for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
           seg.lines.push(line); c += dur + pause;
@@ -614,13 +625,13 @@
         seg = { n: 2, start: t, lines: [] }; let c = t + 400;
         splitLines(S.brief).forEach((text, i) => {
           const tx = text, clip = clips[i];
-          const dur = clip ? Math.max(clip.duration * 1000, tx.length * 30) : tx.length * 75 / sp;
+          const dur = clip ? Math.max(clip.duration * 1000, tx.length * 30 / S.bspeed) : tx.length * 75 / (sp * S.bspeed);
           const line = { text: tx, block: 0, t0: c, times: [], clip };
           for (let k = 0; k < tx.length; k++) line.times.push(c + dur * k / tx.length);
-          seg.lines.push(line); c += dur + 250;
+          seg.lines.push(line); c += dur + 250 / S.bspeed;
         });
         seg.typedEnd = c;
-      } else seg = add(2, splitLines(S.brief).map(text => ({ text, block: 0 })), 400, 200);
+      } else seg = add(2, splitLines(S.brief).map(text => ({ text, block: 0 })), 400, 200, S.bspeed);
       seg.end = seg.typedEnd + hold;
       if (S.voice && S.vtype === 'file' && voiceFileBuf && seg.lines.length) {
         seg.fileAt = seg.lines[0].t0;
@@ -1003,11 +1014,11 @@
       return loading;
     }
     self.onmessage = async e => {
-      const { id, text, voice } = e.data;
+      const { id, text, voice, speed } = e.data;
       try {
         const t = await load();
         if (!text) { self.postMessage({ id, type: 'done' }); return; }
-        const out = await t.generate(text, { voice });
+        const out = await t.generate(text, { voice, speed: speed || 1 });
         const a = Float32Array.from(out.audio);
         self.postMessage({ id, type: 'done', audio: a, sr: out.sampling_rate }, [a.buffer]);
       } catch (err) { self.postMessage({ id, type: 'error', message: String(err && err.message || err) }); }
@@ -1026,7 +1037,7 @@
     w.onerror = e => { e.preventDefault && e.preventDefault(); fail('worker'); };
     const ask = msg => new Promise((res, rej) => { const id = ++seq; waiting.set(id, { res, rej }); w.postMessage({ id, ...msg }); });
     return ask({}).then(() => ({
-      generate: (text, { voice }) => ask({ text, voice }).then(d => ({ audio: d.audio, sampling_rate: d.sr }))
+      generate: (text, { voice, speed }) => ask({ text, voice, speed }).then(d => ({ audio: d.audio, sampling_rate: d.sr }))
     }));
   }
   function loadHumanEngine() {
@@ -1146,7 +1157,7 @@
     tiny:      { sam: () => ({ speed: 70, pitch: 30, throat: 190, mouth: 190 }), fx: (x, sr) => FX.flanger(x, sr, 1.5, 2.5, 0.6, 0.75) }
   };
   const lineSpeech = l => l.replace(/\s+-\s*$/, '').replace(/\s+-\s+/g, ', ').trim();
-  const voiceKey = () => [S.vtype, S.vtype === 'human' ? S.hvoice + '/' + S.robo : S.rvoice, S.brief].join('|');
+  const voiceKey = () => [S.vtype, S.vtype === 'human' ? S.hvoice + '/' + S.robo : S.rvoice, S.bspeed, S.brief].join('|');
   function voiceClips() {
     return voiceCache.key === voiceKey() && voiceCache.bufs ? voiceCache.bufs : null;
   }
@@ -1176,9 +1187,10 @@
         let bufs;
         if (S.vtype === 'robot') {
           await loadVoiceEngine();
-          const R = ROBOTS[S.rvoice] || ROBOTS.classic, RATE = 22050, gap = Math.round(RATE * 0.2);
+          const R = ROBOTS[S.rvoice] || ROBOTS.classic, RATE = 22050, gap = Math.round(RATE * 0.2 / S.bspeed);
           bufs = lines.map((line, li) => {
             const opts = R.sam(li); if (R.smooth && li === lines.length - 1) opts.pitch = 44;
+            opts.speed = Math.max(20, Math.min(255, Math.round(opts.speed / S.bspeed)));   // SAM: bigger number = slower
             const sam = new window.SamJs(opts), chunks = [];
             for (const ph of phrases(lineSpeech(line))) { const b = sam.buf32(ph.toUpperCase()); if (b && b.length) chunks.push(b); }
             if (!chunks.length) return null;
@@ -1197,7 +1209,7 @@
           for (const line of lines) {
             const say = lineSpeech(line).toLowerCase().replace(/[^a-z0-9 ,.?!']/g, ' ').trim();
             if (!say) { bufs.push(null); continue; }
-            const out = await tts.generate(say, { voice: S.hvoice });
+            const out = await tts.generate(say, { voice: S.hvoice, speed: S.bspeed });
             const sr = out.sampling_rate;
             let d = trimSilence(Float32Array.from(out.audio), sr);
             d = roboticize(d, sr, amt, female);
@@ -1240,7 +1252,7 @@
     try {
       if (!queue) speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.1; u.pitch = 1.05; u.volume = 1;
+      u.rate = Math.min(4, 1.1 * (S.bspeed || 1)); u.pitch = 1.05; u.volume = 1;
       const v = pickNaturalVoice(); if (v) u.voice = v;
       speechSynthesis.speak(u);
     } catch (e) {}
@@ -1377,7 +1389,7 @@
     if (k === 'format') setSize();
     if (k === 'view' || k === 'tilt') applyView();
     if (k === 'zones') $('zoneRow').hidden = !S.zones;
-    if (['brief', 'hvoice', 'robo', 'rvoice', 'voice', 's2on'].includes(k)) { if (k === 'voice' && S.voice && S.vtype === 'human') loadHumanEngine(); prepSoon(); }
+    if (['brief', 'hvoice', 'robo', 'rvoice', 'voice', 's2on', 'bspeed'].includes(k)) { if (k === 'voice' && S.voice && S.vtype === 'human') loadHumanEngine(); prepSoon(); }
     if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
   }
 
