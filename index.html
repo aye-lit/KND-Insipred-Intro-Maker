@@ -300,14 +300,29 @@
         <input id="f-tilt" type="range" min="0" max="60" step="1" data-k="tilt">
       </div>
     </div>
-    <label for="f-mscale">Model size</label>
-    <input id="f-mscale" type="range" min="30" max="200" step="5" data-k="mscale">
-    <label for="f-bg">Background</label>
-    <select id="f-bg" data-k="bg">
-      <option value="grid">Gray grid</option>
-      <option value="black">Plain black</option>
-      <option value="key">Green screen (for keying)</option>
-    </select>
+    <div class="row">
+      <div>
+        <label for="f-mscale">Model size</label>
+        <input id="f-mscale" type="range" min="30" max="200" step="5" data-k="mscale">
+      </div>
+      <div>
+        <label for="f-bg">Background</label>
+        <select id="f-bg" data-k="bg">
+          <option value="grid">Gray grid</option>
+          <option value="black">Plain black</option>
+          <option value="key">Green screen (for keying)</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label for="f-mx">Model ← →</label><input id="f-mx" type="range" min="-45" max="45" step="1" data-k="mX"></div>
+      <div><label for="f-my">Model ↑ ↓</label><input id="f-my" type="range" min="-45" max="45" step="1" data-k="mY"></div>
+    </div>
+    <div class="row">
+      <div><label for="f-hx">Heading text ← →</label><input id="f-hx" type="range" min="-45" max="45" step="1" data-k="hX"></div>
+      <div><label for="f-hy">Heading text ↑ ↓</label><input id="f-hy" type="range" min="-10" max="85" step="1" data-k="hY"></div>
+    </div>
+    <button class="reset" id="resetModelPos" type="button">Reset model and text positions</button>
     <div class="row">
       <div>
         <label for="f-spin">Full turn time</label>
@@ -398,13 +413,13 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, mX: 0, mY: 0, hX: 0, hY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
   try { Object.assign(S, JSON.parse(localStorage.getItem('intro-template') || '{}')); } catch (e) {}
   if (typeof S.statsOn !== 'boolean') { S.statsOn = DEFAULTS.statsOn; S.stats = DEFAULTS.stats; }
-  for (const k of ['pwX','pwY','grX','grY']) if (typeof S[k] !== 'number') S[k] = 0;
+  for (const k of ['pwX','pwY','grX','grY','mX','mY','hX','hY']) if (typeof S[k] !== 'number') S[k] = 0;
   if (!Array.isArray(S.meterColors)) S.meterColors = [];
   if (!S.layout) { S.layout = DEFAULTS.layout; if (S.stats === 'power: 85\nrange: 60\nstability: 72\naccuracy: 90') S.stats = DEFAULTS.stats; }
   if (typeof S.mscale !== 'number') S.mscale = 100;
@@ -435,7 +450,7 @@
     const FMT = {
       speed: v => (+v).toFixed(1) + '×', hold: v => (+v).toFixed(1) + ' s', turn: v => (+v).toFixed(1) + ' s',
       tilt: v => v + '°', mscale: v => v + '%', robo: v => +v === 0 ? 'off' : v + '%', bspeed: v => (+v).toFixed(2).replace(/0$/, '') + '×',
-      pwX: v => (v > 0 ? '+' : '') + v, pwY: v => (v > 0 ? '+' : '') + v, grX: v => (v > 0 ? '+' : '') + v, grY: v => (v > 0 ? '+' : '') + v
+      pwX: v => (v > 0 ? '+' : '') + v, mX: v => (v > 0 ? '+' : '') + v, mY: v => (v > 0 ? '+' : '') + v, hX: v => (v > 0 ? '+' : '') + v, hY: v => (v > 0 ? '+' : '') + v, pwY: v => (v > 0 ? '+' : '') + v, grX: v => (v > 0 ? '+' : '') + v, grY: v => (v > 0 ? '+' : '') + v
     };
     let val = null;
     if (el.type === 'range') {
@@ -450,6 +465,10 @@
       S[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? parseFloat(el.value) : el.value;
       save(); onSettingsChange(k);
     });
+  });
+  $('resetModelPos').addEventListener('click', () => {
+    for (const k of ['mX','mY','hX','hY']) S[k] = 0;
+    save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); markDirty();
   });
   $('resetPos').addEventListener('click', () => {
     for (const k of ['pwX','pwY','grX','grY']) S[k] = 0;
@@ -688,7 +707,7 @@
       if (l.block !== lastBlock) { by += size * 1.1; lastBlock = l.block; }
       const baseline = by + size * 0.95;
       const fullW = ctx.measureText(l.text).width;
-      const x0 = align === 'center' ? (W - fullW) / 2 : x ?? (W - widest) / 2;
+      const x0 = (align === 'center' ? (W - fullW) / 2 : x ?? (W - widest) / 2) + (layout.dx || 0);
       let n = 0; for (const tt of l.times) if (tt <= t) n++;
       const shown = l.text.slice(0, n);
       if (shown) ctx.fillText(shown, x0, baseline);
@@ -885,11 +904,11 @@
         model.scale.setScalar(s * S.mscale / 100);
         spinner.rotation.y = Math.PI * 2 * Math.min((t - seg.modelStart) / (S.turn * 1000), 1);
         renderer.render(scene, camera);
-        ctx.drawImage(renderer.domElement, 0, 0, W, H);
+        ctx.drawImage(renderer.domElement, S.mX / 100 * W, -S.mY / 100 * H, W, H);   // move the model around
         if (S.statsOn) drawStats(t, seg);
       }
       const size = fitSize(seg.lines, H * (port ? 0.04 : 0.068), W * 0.85, H * 0.3);
-      drawLines(seg.lines, t, { size, y: H * (port ? 0.95 : 0.94) - blockHeight(seg.lines, size) });
+      drawLines(seg.lines, t, { size, y: H * (port ? 0.95 : 0.94) - blockHeight(seg.lines, size) - S.hY / 100 * H, dx: S.hX / 100 * W });
     }
   }
 
