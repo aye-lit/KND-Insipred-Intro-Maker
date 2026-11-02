@@ -173,6 +173,7 @@
       <button type="button" data-tab="brief" data-pv="2" aria-pressed="false">Briefing</button>
       <button type="button" data-tab="model" data-pv="3" aria-pressed="false">Model</button>
       <button type="button" data-tab="meters" data-pv="3" aria-pressed="false">Meters</button>
+      <button type="button" data-tab="trans" aria-pressed="false">Transition</button>
       <button type="button" data-tab="video" aria-pressed="false">Video</button>
     </div>
     <div class="off" id="pvNote"></div>
@@ -187,12 +188,24 @@
     <div class="file" id="fontNote" role="status"></div>
   </fieldset>
 
-  <fieldset data-tab="video">
+  <fieldset data-tab="trans" data-part="t">
     <legend>Transition between parts</legend>
-    <select id="f-trans" data-k="trans" aria-label="Transition between parts">
+    <button class="partplay" type="button" data-play="t" aria-label="Play just the transition">▶ Play transition</button>
+    <label for="f-trans">Style</label>
+    <select id="f-trans" data-k="trans">
       <option value="iris">Iris blades</option>
       <option value="none">None (straight cut)</option>
     </select>
+    <div id="irisOpts">
+      <label for="f-irisspeed">Speed</label>
+      <input id="f-irisspeed" type="range" min="0.4" max="2.5" step="0.05" data-k="irisSpeed">
+      <div class="row">
+        <div style="flex:0 0 auto"><label for="f-irisc">Blade color</label><input id="f-irisc" type="color" data-k="irisC"></div>
+        <div style="flex:0 0 auto"><label for="f-irise">Edge color</label><input id="f-irise" type="color" data-k="irisE"></div>
+        <div></div>
+      </div>
+      <button class="reset" type="button" id="resetIris">Reset to gunmetal</button>
+    </div>
   </fieldset>
 
   <fieldset data-tab="video">
@@ -431,7 +444,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -448,6 +461,9 @@
   if (typeof S.robo !== 'number') S.robo = 0;
   if (typeof S.bspeed !== 'number') S.bspeed = 1;
   if (!S.trans) S.trans = 'iris';
+  if (typeof S.irisSpeed !== 'number') S.irisSpeed = 1;
+  if (!S.irisC) S.irisC = '#4c5159';
+  if (!S.irisE) S.irisE = '#c9d0d8';
   // the model heading used to add the title under it automatically; now it's all in the box (keeps what was on screen)
   if (!S.headV2) {
     const tt = S.dots ? S.title.replace(/\s+/g, '').split('').join('.') + '.' : S.title;
@@ -468,7 +484,7 @@
     const k = el.dataset.k;
     const FMT = {
       speed: v => (+v).toFixed(1) + '×', hold: v => (+v).toFixed(1) + ' s', turn: v => (+v).toFixed(1) + ' s',
-      tilt: v => v + '°', mscale: v => v + '%', robo: v => +v === 0 ? 'off' : v + '%', bspeed: v => (+v).toFixed(2).replace(/0$/, '') + '×',
+      tilt: v => v + '°', mscale: v => v + '%', robo: v => +v === 0 ? 'off' : v + '%', bspeed: v => (+v).toFixed(2).replace(/0$/, '') + '×', irisSpeed: v => (+v).toFixed(2).replace(/0$/, '') + '×',
       pwX: v => (v > 0 ? '+' : '') + v, mX: v => (v > 0 ? '+' : '') + v, tX: v => (v > 0 ? '+' : '') + v, tY: v => (v > 0 ? '+' : '') + v, bX: v => (v > 0 ? '+' : '') + v, bY: v => (v > 0 ? '+' : '') + v, mY: v => (v > 0 ? '+' : '') + v, hX: v => (v > 0 ? '+' : '') + v, hY: v => (v > 0 ? '+' : '') + v, pwY: v => (v > 0 ? '+' : '') + v, grX: v => (v > 0 ? '+' : '') + v, grY: v => (v > 0 ? '+' : '') + v
     };
     let val = null;
@@ -489,6 +505,11 @@
     for (const k of b.dataset.reset.split(',')) S[k] = 0;
     save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); markDirty();
   }));
+  $('resetIris').addEventListener('click', () => {
+    S.irisSpeed = 1; S.irisC = DEFAULTS.irisC; S.irisE = DEFAULTS.irisE;
+    save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); TL = buildTimeline(); idleT = idleTime(); markDirty();
+  });
+  $('irisOpts').hidden = S.trans !== 'iris';
   $('resetModelPos').addEventListener('click', () => {
     for (const k of ['mX','mY','hX','hY']) S[k] = 0;
     save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); markDirty();
@@ -911,7 +932,11 @@
 
   function draw(t) { drawScene(t); const c = irisAmount(t); if (c > 0) drawIris(ctx, W, H, c); }
   // ---------- iris blade transition ----------
-  const IRIS = { close: 720, hold: 220, open: 760, blades: 9, twist: 0.9, bend: 0.55 };
+  const IRIS = { blades: 9, twist: 0.9, bend: 0.55,
+    get close() { return 720 / (S.irisSpeed || 1); }, get hold() { return 220 / (S.irisSpeed || 1); }, get open() { return 760 / (S.irisSpeed || 1); } };
+  // blade shades come from the chosen blade color: a darker edge tone, the color itself and a slightly lighter one
+  function mixHex(hex, to, amt) { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, t = to ? 255 : 0;
+    return 'rgb(' + [r, g, b].map(v => Math.round(v + (t - v) * amt)).join(',') + ')'; }
   const irisEase = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
   function irisAmount(t) {   // 0 = open ... 1 = shut
     if (!TL || !TL.trans) return 0;
@@ -944,7 +969,8 @@
       ctx.beginPath(); slice(a0, a1); ctx.clip();
       ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2);
       const g = ctx.createLinearGradient(Math.cos(a0) * U(1), Math.sin(a0) * U(1), Math.cos(a1) * U(1), Math.sin(a1) * U(1));
-      g.addColorStop(0, '#2b2e33'); g.addColorStop(0.45, i % 2 ? '#5a6069' : '#4c5159'); g.addColorStop(1, '#2b2e33');
+      const dark = mixHex(S.irisC, 0, 0.45);
+      g.addColorStop(0, dark); g.addColorStop(0.45, i % 2 ? mixHex(S.irisC, 1, 0.1) : S.irisC); g.addColorStop(1, dark);
       ctx.fillStyle = g; ctx.fill();
       const hx = Math.cos(a) * U(r + 0.15), hy = Math.sin(a) * U(r + 0.15);
       const hl = ctx.createRadialGradient(hx, hy, 0, hx, hy, U(0.55));
@@ -955,7 +981,7 @@
       for (let k = 0; k < 14; k++) { ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc + 0.03 + k * 0.05), 0, Math.PI * 2); ctx.stroke(); }
       ctx.restore();
       ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2);
-      ctx.lineWidth = Math.max(1.2, unit / 140); ctx.strokeStyle = '#c9d0d8'; ctx.stroke();
+      ctx.lineWidth = Math.max(1.2, unit / 140); ctx.strokeStyle = S.irisE; ctx.stroke();
       ctx.restore();
       if (part) return;
       // leading edge, with a soft shadow onto the blade underneath
@@ -964,7 +990,7 @@
       ctx.beginPath();
       for (let k = 0; k <= 24; k++) { const p = k / 24 * Rk, th = a1 + bend * p, X = Math.cos(th) * U(p), Y = Math.sin(th) * U(p); k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
       ctx.lineWidth = Math.max(3, unit / 40); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.stroke();
-      ctx.lineWidth = Math.max(1, unit / 180); ctx.strokeStyle = 'rgba(220,228,236,.55)'; ctx.stroke();
+      ctx.globalAlpha = 0.55; ctx.lineWidth = Math.max(1, unit / 180); ctx.strokeStyle = S.irisE; ctx.stroke(); ctx.globalAlpha = 1;
       ctx.restore();
     }
     for (let i = 0; i < N; i++) blade(i, false);
@@ -1542,6 +1568,7 @@
 
 
   // ---------- playback + recording ----------
+  let playEnd = null;
   let playing = false, playStart = 0, idleT = 0, recorder = null, onDone = null;
 
   let pvPart = 1;
@@ -1549,7 +1576,11 @@
   function idleTime() {
     if (!TL.segs.length) return 0;
     let s = TL.segs[0];
-    if (panelOpen()) {
+    if (panelOpen() && pvPart === 't') {
+      $('pvNote').textContent = TL.trans.length ? '' : (S.trans === 'none' ? 'Transition is off — pick Iris blades to see it.' : 'Turn on at least two parts to see the transition.');
+      if (TL.trans.length) return TL.trans[0] + IRIS.close * 0.62;
+    }
+    if (panelOpen() && pvPart !== 't') {
       const want = TL.segs.find(x => x.n === pvPart);
       $('pvNote').textContent = want ? '' : 'This part is switched off — tick its box to include it.';
       if (want) s = want;
@@ -1568,6 +1599,7 @@
     });
     const b = document.querySelector(`.tabs [data-tab="${t}"]`);
     if (b && b.dataset.pv) setPreview(+b.dataset.pv);
+    if (t === 'trans') setPreview('t');
     $('panel').scrollTop = 0;
     if (t === 'model') fitHead();
     if (t === 'brief') fitBox($('f-brief'), 166, 260);
@@ -1593,6 +1625,7 @@
     if (k === 'format') setSize();
     if (k === 'view' || k === 'tilt') applyView();
     if (k === 'zones') $('zoneRow').hidden = !S.zones;
+    if (k === 'trans') $('irisOpts').hidden = S.trans !== 'iris';
     if (['brief', 'hvoice', 'robo', 'rvoice', 'voice', 's2on', 'bspeed'].includes(k)) { if (k === 'voice' && S.voice && S.vtype === 'human') loadHumanEngine(); prepSoon(); }
     if (!playing) { TL = buildTimeline(); idleT = idleTime(); }
   }
@@ -1607,7 +1640,8 @@
   function frame(now) {
     if (playing) {
       let t = Math.max(0, now - playStart);
-      if (t >= TL.total) { t = TL.total; playing = false; const cb = onDone; onDone = null; draw(t); cb && cb(); markDirty(); }
+      const end = playEnd != null ? playEnd : TL.total;
+      if (t >= end) { t = end; playing = false; playEnd = null; const cb = onDone; onDone = null; draw(t); cb && cb(); markDirty(); }
       else draw(t);
     } else {
       if (TL !== lastTL) { lastTL = TL; tlId++; }
@@ -1638,6 +1672,7 @@
     try { return buildTimeline(); } finally { [S.s1on, S.s2on, S.s3on] = was; }
   }
   function play(done, part) {
+    playEnd = null;
     if (!part) {
       $('panel').classList.remove('open');
       document.body.classList.add('hidden-ui');
@@ -1653,12 +1688,12 @@
   }
   function stop() {
     if (!playing) return;
-    playing = false; onDone = null;
+    playing = false; onDone = null; playEnd = null;
     silence();
     if (recorder && recorder.state !== 'inactive') { recorder._cancelled = true; recorder.stop(); }
     document.body.classList.remove('hidden-ui');
     TL = buildTimeline(); idleT = idleTime(); hideStatus();
-    document.querySelectorAll('.partplay').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.textContent = '▶ Play this part'; });
+    document.querySelectorAll('.partplay').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.textContent = b.dataset.label; });
   }
 
   const MIMES = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp9', 'video/webm'];
@@ -1704,9 +1739,11 @@
 
   $('playBtn').addEventListener('click', () => playWithVoice());
   // ▶ Play this part: plays just that section in the preview, settings stay open; press again to stop
+  document.querySelectorAll('.partplay').forEach(b => { b.dataset.label = b.textContent; });
   document.querySelectorAll('.partplay').forEach(b => b.addEventListener('click', async () => {
     if (b.getAttribute('aria-pressed') === 'true') { stop(); return; }
     stop();
+    if (b.dataset.play === 't') { playTransition(b); return; }
     const n = +b.dataset.play;
     audio(); if (actx && actx.state === 'suspended') actx.resume();
     unlockAudio();
@@ -1714,8 +1751,22 @@
     await fontReady;
     if (n === 2) { const was = S.s2on; S.s2on = true; await waitForVoice(); S.s2on = was; }
     if (b.getAttribute('aria-pressed') !== 'true') return;   // stopped while getting ready
-    play(() => { b.setAttribute('aria-pressed', 'false'); b.textContent = '▶ Play this part'; }, n);
+    play(() => { b.setAttribute('aria-pressed', 'false'); b.textContent = b.dataset.label; }, n);
   }));
+  // ▶ Play transition: plays just the first transition (a moment before, the blades, a moment after), with its sound
+  function playTransition(b) {
+    TL = buildTimeline();
+    if (!TL.trans.length) { status(S.trans === 'none' ? 'The transition is off. Pick Iris blades first.' : 'Turn on at least two parts to see the transition.', 3500); return; }
+    const T = TL.trans[0], from = Math.max(0, T - 500), to = T + IRIS.close + IRIS.hold + IRIS.open + 600;
+    silence();
+    const ac = audio(); unlockAudio();
+    const lead = 0.08;
+    if (ac) { if (ac.state === 'suspended') ac.resume(); irisSound(ac.currentTime + lead + (T - from) / 1000); }
+    playStart = performance.now() + lead * 1000 - from; playEnd = to;
+    playing = true;
+    b.setAttribute('aria-pressed', 'true'); b.textContent = '■ Stop';
+    onDone = () => { b.setAttribute('aria-pressed', 'false'); b.textContent = b.dataset.label; idleT = idleTime(); };
+  }
   const syncVoiceUI = (initial) => {
     $('vfileRow').hidden = S.vtype !== 'file';
     $('humanRow').hidden = S.vtype !== 'human';
