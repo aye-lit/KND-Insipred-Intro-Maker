@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iris Transition Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #000; color: #eee; font: 15px/1.5 "Inter", system-ui, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  p.note { color: #999; font-size: 13px; margin: 4px 0 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #181818; border: 1px solid #333; border-radius: 12px; padding: 12px; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; display: flex; gap: 10px; align-items: center; }
+  .num { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid #00ff66; display: grid; place-items: center; font-size: 13px; }
+  canvas { width: 100%; aspect-ratio: 16 / 9; display: block; background: #000; border-radius: 8px; }
+  .desc { color: #999; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Iris transition preview</h1>
+  <p class="note">Each one loops: title card → iris closes → iris opens on the briefing → closes → opens on the model screen. Tell me the number you like.</p>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+  // ---- iris shutter: N blades, each a straight-edged plate whose inner edge is tangent to the aperture ----
+  function drawIris(ctx, W, H, open, o) {
+    // open: 1 = fully open (blades hidden), 0 = closed
+    const cx = W / 2, cy = H / 2, R = Math.hypot(W, H) / 2 + 4;   // housing radius covers the whole frame
+    const N = o.blades, r = Math.max(0, open) * R * 1.02;
+    const twist = (1 - open) * o.twist;                             // blades swing around as they close
+    ctx.save();
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + twist + o.spin * (1 - open);
+      const nx = Math.cos(a), ny = Math.sin(a), dx = -ny, dy = nx;
+      const px = cx + nx * r, py = cy + ny * r, L = R * 2.2;
+      // plate: from the tangent line outward, leaning one way so neighbours overlap like real blades
+      const lean = o.lean;
+      ctx.beginPath();
+      ctx.moveTo(px - dx * L * 0.15, py - dy * L * 0.15);
+      ctx.lineTo(px + dx * L, py + dy * L);
+      ctx.lineTo(px + dx * L + nx * L + dx * L * lean, py + dy * L + ny * L + dy * L * lean);
+      ctx.lineTo(px - dx * L * 0.15 + nx * L, py - dy * L * 0.15 + ny * L);
+      ctx.closePath();
+      const g = ctx.createLinearGradient(px, py, px + nx * R * 0.9, py + ny * R * 0.9);
+      const shade = i % 2 ? o.c1 : o.c2;
+      g.addColorStop(0, shade); g.addColorStop(1, o.c3);
+      ctx.fillStyle = g; ctx.fill();
+      ctx.lineWidth = o.edgeW * Math.min(W, H) / 540; ctx.strokeStyle = o.edge; ctx.stroke();
+    }
+    // housing ring
+    if (o.ring) {
+      const rr = Math.max(Math.min(W, H) * 0.49, r * 1.04);   // ring slides in with the blades, then stays put
+      ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(cx, cy, rr, 0, Math.PI * 2, true);
+      ctx.fillStyle = o.ringFill; ctx.fill('evenodd');
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.lineWidth = Math.min(W, H) / 90; ctx.strokeStyle = o.ringEdge; ctx.stroke();
+      for (let k = 0; k < 12; k++) { const b = k / 12 * Math.PI * 2; ctx.beginPath(); ctx.arc(cx + Math.cos(b) * rr * 1.06, cy + Math.sin(b) * rr * 1.06, Math.min(W, H) / 110, 0, Math.PI * 2); ctx.fillStyle = o.ringEdge; ctx.fill(); }
+    }
+    ctx.restore();
+  }
+
+  // ---- stand-in scenes (same look as the intro maker) ----
+  function scene(ctx, W, H, n) {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic';
+    const f = s => `600 ${s}px "Exo 2", "Trebuchet MS", Arial, sans-serif`;
+    if (n === 0) {
+      ctx.textAlign = 'center'; ctx.font = f(H * 0.085);
+      ctx.fillText('ayelit presents', W / 2, H * 0.36); ctx.fillText('operation:', W / 2, H * 0.56); ctx.fillText('g.u.m.z.o.o.k.a.', W / 2, H * 0.67);
+    } else if (n === 1) {
+      ctx.textAlign = 'left'; ctx.font = f(H * 0.075);
+      ['warning -', 'sticky', 'gum', 'launcher -', 'handle with care.'].forEach((l, i) => ctx.fillText(l, W * 0.36, H * 0.24 + i * H * 0.13));
+    } else {
+      const st = Math.round(Math.min(W, H) / 27);
+      ctx.strokeStyle = 'rgba(170,170,170,.55)'; ctx.lineWidth = Math.max(1, st / 18); ctx.beginPath();
+      for (let x = (W / 2) % st; x <= W; x += st) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = (H / 2) % st; y <= H; y += st) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+      ctx.stroke();
+      // simple green wireframe cube
+      const t = performance.now() / 1000, s = H * 0.18, c = [W / 2, H * 0.42];
+      const P = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(([x, y, z]) => {
+        const ca = Math.cos(t), sa = Math.sin(t), X = x * ca - z * sa, Z = x * sa + z * ca, Y = y * 0.94 - Z * 0.34;
+        return [c[0] + X * s, c[1] + Y * s];
+      });
+      ctx.strokeStyle = '#39ff6a'; ctx.lineWidth = Math.max(1, H / 300); ctx.beginPath();
+      [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(([a, b]) => { ctx.moveTo(...P[a]); ctx.lineTo(...P[b]); });
+      ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = f(H * 0.06);
+      ctx.fillText('model', W * 0.36, H * 0.8); ctx.fillText('file - g.u.m.z.o.o.k.a.', W * 0.36, H * 0.88);
+    }
+  }
+
+  const STYLES = [
+    { name: 'Steel iris', desc: '8 brushed-steel blades with a bolted ring, smooth spiral close.',
+      blades: 8, twist: 1.1, spin: 0, lean: 0.35, c1: '#5b6068', c2: '#4a4f57', c3: '#1d2024', edge: '#9aa3ad', edgeW: 1.4, ring: true, ringFill: '#15171a', ringEdge: '#3a3f46', close: 520, hold: 140, open: 560 },
+    { name: 'Neon tech iris', desc: '7 dark blades outlined in the wireframe green, a quick snap.',
+      blades: 7, twist: 0.9, spin: 0, lean: 0.3, c1: '#0d140f', c2: '#0a100c', c3: '#000', edge: '#39ff6a', edgeW: 2, ring: false, close: 380, hold: 90, open: 420 },
+    { name: 'Spinning shutter', desc: '6 wide blades that spin as they close, punchier and more dramatic.',
+      blades: 6, twist: 0.6, spin: 1.6, lean: 0.5, c1: '#6a6f77', c2: '#565b63', c3: '#24272b', edge: '#c9d0d8', edgeW: 1.2, ring: true, ringFill: '#101113', ringEdge: '#4a4f57', close: 460, hold: 120, open: 520 },
+    { name: 'Camera aperture', desc: '10 thin matte-black blades, like a real camera lens, soft and quiet.',
+      blades: 10, twist: 1.4, spin: 0, lean: 0.25, c1: '#1c1d1f', c2: '#161719', c3: '#060607', edge: '#3c3f44', edgeW: 1, ring: true, ringFill: '#0b0b0c', ringEdge: '#26282b', close: 600, hold: 160, open: 640 }
+  ];
+  const ease = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+
+  STYLES.forEach((o, i) => {
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `<h2><span class="num">${i + 1}</span>${o.name}</h2><canvas width="960" height="540"></canvas><div class="desc">${o.desc}</div>`;
+    document.getElementById('grid').append(card);
+    const cv = card.querySelector('canvas'), ctx = cv.getContext('2d');
+    const showFor = 1400, cycle = showFor + o.close + o.hold + o.open;
+    const t0 = performance.now();
+    (function tick(now) {
+      const t = (now - t0) % (cycle * 3), k = Math.floor(t / cycle), u = t - k * cycle;
+      let sceneN = k, open = 1;
+      if (u > showFor && u <= showFor + o.close) open = 1 - ease((u - showFor) / o.close);
+      else if (u > showFor + o.close && u <= showFor + o.close + o.hold) open = 0;
+      else if (u > showFor + o.close + o.hold) { sceneN = (k + 1) % 3; open = ease((u - showFor - o.close - o.hold) / o.open); }
+      scene(ctx, cv.width, cv.height, sceneN);
+      if (open < 1) drawIris(ctx, cv.width, cv.height, open, o);
+      requestAnimationFrame(tick);
+    })(t0);
+  });
+  window.__drawIris = drawIris; window.__STYLES = STYLES; window.__scene = scene;
+</script>
+</body>
+</html>
