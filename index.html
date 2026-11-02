@@ -411,7 +411,7 @@
       <div style="flex:0 0 auto"><label for="f-z1">Low</label><input id="f-z1" type="color" data-k="z1"></div>
       <div style="flex:0 0 auto"><label for="f-z2">Middle</label><input id="f-z2" type="color" data-k="z2"></div>
       <div style="flex:0 0 auto"><label for="f-z3">High</label><input id="f-z3" type="color" data-k="z3"></div>
-      <div></div>
+      <div><label for="f-zlines">Lines per section</label><input id="f-zlines" type="range" min="1" max="8" step="1" data-k="zLines"></div>
     </div>
     <label>Meters — name one "power" to put it on the big meter (up to 6)</label>
     <div class="mcolors" id="meterColors"></div>
@@ -466,7 +466,7 @@
     format: 'land',
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
-    s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
+    s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', zLines: 4, color: '#39ff6a',
     speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
@@ -490,6 +490,7 @@
   if (!S.irisE) S.irisE = '#c9d0d8';
   if (!Array.isArray(S.irisCols)) S.irisCols = [];
   if (typeof S.irisEach !== 'boolean') S.irisEach = false;
+  if (typeof S.zLines !== 'number') S.zLines = 4;
   // the model heading used to add the title under it automatically; now it's all in the box (keeps what was on screen)
   if (!S.headV2) {
     const tt = S.dots ? S.title.replace(/\s+/g, '').split('').join('.') + '.' : S.title;
@@ -909,17 +910,23 @@
             ctx.restore();
           }
         }
-        if (S.zones) { // section dividers
-          ctx.save(); ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(2, mw * 0.04);
-          for (const z of [1, 2]) { const y = base - innerH * z / 3; ctx.beginPath(); ctx.moveTo(fx, y); ctx.lineTo(fx + fw, y); ctx.stroke(); }
+        const per = Math.max(1, Math.round(S.zLines || 1)), segs = 3 * per;
+        if (S.zones) { // thick lines between the 3 sections, thin lines splitting each section into segments
+          ctx.save(); ctx.strokeStyle = '#000';
+          for (let k = 1; k < segs; k++) {
+            const y = base - innerH * k / segs, major = k % per === 0;
+            ctx.lineWidth = major ? Math.max(2, mw * 0.045) : Math.max(1, mw * 0.018);
+            ctx.beginPath(); ctx.moveTo(fx, y); ctx.lineTo(fx + fw, y); ctx.stroke();
+          }
           ctx.restore();
         }
-        // scale ticks on the left side
+        // scale ticks on the left side (they line up with the segments when the bar is split)
         ctx.lineWidth = Math.max(2, mw * 0.03); ctx.strokeStyle = 'rgba(220,220,220,.6)';
-        const inner = mh - pad * 2;
-        for (let k = 0; k <= 10; k++) {
-          const ty = top + pad + inner * (1 - k / 10);
-          const len = mw * (k % 5 ? 0.18 : 0.32);
+        const inner = mh - pad * 2, nt = S.zones ? segs : 10;
+        for (let k = 0; k <= nt; k++) {
+          const ty = top + pad + inner * (1 - k / nt);
+          const major = S.zones ? k % per === 0 : k % 5 === 0;
+          const len = mw * (major ? 0.32 : 0.18);
           ctx.beginPath(); ctx.moveTo(x - mw * 0.12, ty); ctx.lineTo(x - mw * 0.12 - len, ty); ctx.stroke();
         }
         ctx.fillStyle = S.zones ? zoneCol(val) : colorOf(power); ctx.font = font(mw * 0.42);
