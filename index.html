@@ -1195,6 +1195,9 @@
     status('Getting the voice ready…');
     try { return await prepareVoice(); } finally { voiceWaiting = false; hideStatus(); }
   }
+  // every spoken line is kept, so after an edit only the lines that changed get made again
+  const lineCache = new Map();
+  function cacheLine(k, buf) { lineCache.set(k, buf); if (lineCache.size > 300) lineCache.delete(lineCache.keys().next().value); }
   let preparing = null;
   async function prepareVoice() {
     if (!S.voice || !S.s2on || !isAIVoice()) return true;
@@ -1212,10 +1215,15 @@
           await loadVoiceEngine();
           const R = ROBOTS[S.rvoice] || ROBOTS.classic, RATE = 22050, gap = Math.round(RATE * 0.2 / S.bspeed);
           bufs = [];
+          const rkey = li => ['robot', S.rvoice, S.bspeed, R.smooth ? (li === lines.length - 1 ? 'last' : li % 3) : '', lines[li]].join('|');
+          const todo = lines.map((_, li) => li).filter(li => !lineCache.has(rkey(li)));
+          let done = 0;
           for (let li = 0; li < lines.length; li++) {
-            setVBar('Making the voice… line ' + (li + 1) + ' of ' + lines.length, li / lines.length);
+            if (lineCache.has(rkey(li))) { bufs.push(lineCache.get(rkey(li))); continue; }
+            setVBar('Making the voice… line ' + (done + 1) + ' of ' + todo.length, done / todo.length);
             await new Promise(r => setTimeout(r, 0));   // let the bar draw
-            bufs.push(((line) => {
+            done++;
+            const made = ((line) => {
             const opts = R.sam(li); if (R.smooth && li === lines.length - 1) opts.pitch = 44;
             opts.speed = Math.max(20, Math.min(255, Math.round(opts.speed / S.bspeed)));   // SAM: bigger number = slower
             const sam = new window.SamJs(opts), chunks = [];
@@ -1225,7 +1233,8 @@
             for (const c of chunks) { d.set(c, o); o += c.length + gap; }
             if (R.fx) d = R.fx(peakTo(d), RATE);
             const buf = toBuffer(ac, R.smooth ? peakTo(d) : level(d), RATE); buf._smooth = !!R.smooth; return buf;
-            })(lines[li]));
+            })(lines[li]);
+            cacheLine(rkey(li), made); bufs.push(made);
           }
         } else {
           if (!humanTTS) loadHumanEngine();
@@ -1234,15 +1243,22 @@
           const tts = await loadHumanEngine();
           const female = /^.f_/.test(S.hvoice), amt = S.robo / 100;
           bufs = [];
-          for (const [li, line] of lines.entries()) {
-            setVBar('Making the voice… line ' + (li + 1) + ' of ' + lines.length, li / lines.length);
-            const say = lineSpeech(line).toLowerCase().replace(/[^a-z0-9 ,.?!']/g, ' ').trim();
+          const sayOf = line => lineSpeech(line).toLowerCase().replace(/[^a-z0-9 ,.?!']/g, ' ').trim();
+          const hkey = say => ['human', S.hvoice, S.robo, S.bspeed, say].join('|');
+          const todo = lines.filter(l => sayOf(l) && !lineCache.has(hkey(sayOf(l))));
+          let done = 0;
+          for (const line of lines) {
+            const say = sayOf(line);
             if (!say) { bufs.push(null); continue; }
+            if (lineCache.has(hkey(say))) { bufs.push(lineCache.get(hkey(say))); continue; }
+            setVBar('Making the voice… line ' + (done + 1) + ' of ' + todo.length, done / todo.length);
+            done++;
             const out = await tts.generate(say, { voice: S.hvoice, speed: S.bspeed });
             const sr = out.sampling_rate;
             let d = trimSilence(Float32Array.from(out.audio), sr);
             d = roboticize(d, sr, amt, female);
-            bufs.push(toBuffer(ac, level(d), sr));
+            const made = toBuffer(ac, level(d), sr);
+            cacheLine(hkey(say), made); bufs.push(made);
           }
         }
         if (!bufs.some(Boolean)) throw new Error('empty');
