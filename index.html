@@ -188,6 +188,14 @@
   </fieldset>
 
   <fieldset data-tab="video">
+    <legend>Transition between parts</legend>
+    <select id="f-trans" data-k="trans" aria-label="Transition between parts">
+      <option value="iris">Iris blades</option>
+      <option value="none">None (straight cut)</option>
+    </select>
+  </fieldset>
+
+  <fieldset data-tab="video">
     <legend>Video size</legend>
     <select id="f-format" data-k="format" aria-label="Video size">
       <option value="land">Landscape 1920 × 1080</option>
@@ -423,7 +431,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -439,6 +447,7 @@
   if (!S.hvoice) S.hvoice = 'af_heart';
   if (typeof S.robo !== 'number') S.robo = 0;
   if (typeof S.bspeed !== 'number') S.bspeed = 1;
+  if (!S.trans) S.trans = 'iris';
   // the model heading used to add the title under it automatically; now it's all in the box (keeps what was on screen)
   if (!S.headV2) {
     const tt = S.dots ? S.title.replace(/\s+/g, '').split('').join('.') + '.' : S.title;
@@ -649,7 +658,11 @@
       if (S.title.trim()) lines.push({ text: titleText(), block: 1 });
       const seg = add(1, lines, 500, 350); seg.end = seg.typedEnd + hold; segs.push(seg); t = seg.end;
     }
+    // between parts the iris closes over the old part, holds shut, then opens on the new one
+    const trans = [];
+    const transGap = () => { if (S.trans === 'iris' && segs.length) { trans.push(t); t += IRIS.close + IRIS.hold; } };
     if (S.s2on) {
+      transGap();
       const clips = S.voice && isAIVoice() ? voiceClips() : null;
       let seg;
       if (S.voice && S.vtype === 'natural' && window.speechSynthesis) {
@@ -688,13 +701,14 @@
       segs.push(seg); t = seg.end;
     }
     if (S.s3on) {
+      transGap();
       const lines = splitLines(S.head).map(text => ({ text, block: 0 }));
       const seg = add(3, lines, 500, 250);
       seg.modelStart = seg.typedEnd;
       seg.end = seg.modelStart + Math.max(S.turn * 1000, 4400) + 800;
       segs.push(seg); t = seg.end;
     }
-    return { segs, total: t };
+    return { segs, total: t, trans };
   }
 
   // ---------- drawing ----------
@@ -895,7 +909,69 @@
     ctx.restore();
   }
 
-  function draw(t) {
+  function draw(t) { drawScene(t); const c = irisAmount(t); if (c > 0) drawIris(ctx, W, H, c); }
+  // ---------- iris blade transition ----------
+  const IRIS = { close: 720, hold: 220, open: 760, blades: 9, twist: 0.9, bend: 0.55 };
+  const irisEase = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  function irisAmount(t) {   // 0 = open ... 1 = shut
+    if (!TL || !TL.trans) return 0;
+    for (const T of TL.trans) {
+      const a = T, b = a + IRIS.close, h = b + IRIS.hold, e = h + IRIS.open;
+      if (t >= a && t < b) return irisEase((t - a) / IRIS.close);
+      if (t >= b && t < h) return 1;
+      if (t >= h && t < e) return irisEase(1 - (t - h) / IRIS.open);
+    }
+    return 0;
+  }
+  // 9 curved gunmetal blades that spiral in from the screen edges and meet in the middle
+  function drawIris(ctx, W, H, c) {
+    const Rk = 1.43, Rc = 1.7, N = IRIS.blades, span = Math.PI * 2 / N * 2.5, bend = IRIS.bend;
+    const unit = Math.hypot(W, H) / 2 / Rk * 1.02, U = v => v * unit;
+    const r = Rk * (1 - c), twist = IRIS.twist * c;
+    ctx.save(); ctx.translate(W / 2, H / 2);
+    function slice(a0, a1) {
+      ctx.moveTo(0, 0);
+      for (let k = 0; k <= 18; k++) { const p = k / 18 * Rk, th = a0 + bend * p; ctx.lineTo(Math.cos(th) * U(p), Math.sin(th) * U(p)); }
+      ctx.arc(0, 0, U(Rk), a0 + bend * Rk, a1 + bend * Rk);
+      for (let k = 18; k >= 0; k--) { const p = k / 18 * Rk, th = a1 + bend * p; ctx.lineTo(Math.cos(th) * U(p), Math.sin(th) * U(p)); }
+      ctx.closePath();
+    }
+    function blade(i, part) {
+      const a = i / N * Math.PI * 2 + twist, a0 = a - span / 2, a1 = part ? a : a + span / 2;
+      const ccx = Math.cos(a) * U(r + Rc), ccy = Math.sin(a) * U(r + Rc);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, U(Rk), 0, Math.PI * 2); ctx.clip();
+      ctx.beginPath(); slice(a0, a1); ctx.clip();
+      ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2);
+      const g = ctx.createLinearGradient(Math.cos(a0) * U(1), Math.sin(a0) * U(1), Math.cos(a1) * U(1), Math.sin(a1) * U(1));
+      g.addColorStop(0, '#2b2e33'); g.addColorStop(0.45, i % 2 ? '#5a6069' : '#4c5159'); g.addColorStop(1, '#2b2e33');
+      ctx.fillStyle = g; ctx.fill();
+      const hx = Math.cos(a) * U(r + 0.15), hy = Math.sin(a) * U(r + 0.15);
+      const hl = ctx.createRadialGradient(hx, hy, 0, hx, hy, U(0.55));
+      hl.addColorStop(0, 'rgba(255,255,255,.16)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = hl; ctx.fill();
+      ctx.save(); ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2); ctx.clip();
+      ctx.strokeStyle = 'rgba(255,255,255,.035)'; ctx.lineWidth = 1;
+      for (let k = 0; k < 14; k++) { ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc + 0.03 + k * 0.05), 0, Math.PI * 2); ctx.stroke(); }
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1.2, unit / 140); ctx.strokeStyle = '#c9d0d8'; ctx.stroke();
+      ctx.restore();
+      if (part) return;
+      // leading edge, with a soft shadow onto the blade underneath
+      ctx.save();
+      ctx.beginPath(); ctx.arc(ccx, ccy, U(Rc), 0, Math.PI * 2); ctx.clip();
+      ctx.beginPath();
+      for (let k = 0; k <= 24; k++) { const p = k / 24 * Rk, th = a1 + bend * p, X = Math.cos(th) * U(p), Y = Math.sin(th) * U(p); k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+      ctx.lineWidth = Math.max(3, unit / 40); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.stroke();
+      ctx.lineWidth = Math.max(1, unit / 180); ctx.strokeStyle = 'rgba(220,228,236,.55)'; ctx.stroke();
+      ctx.restore();
+    }
+    for (let i = 0; i < N; i++) blade(i, false);
+    blade(0, true);   // first blade's trailing half goes back on top of the last one, like a real overlap
+    ctx.restore();
+  }
+  function drawScene(t) {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     if (!TL || !TL.segs.length) return;
     let seg = TL.segs[0];
@@ -1014,6 +1090,25 @@
     const g = actx.createGain();
     g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.35, at + dur * 0.85); g.gain.exponentialRampToValueAtTime(0.0001, at + dur + 0.05);
     src.connect(bp).connect(g).connect(sfxBus); src.start(at); src.stop(at + dur + 0.1);
+  }
+  function irisWhir(at, dur, f0, f1, peak) {
+    const src = keep(actx.createBufferSource()); src.buffer = noise; src.loop = true;
+    const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.2;
+    bp.frequency.setValueAtTime(f0, at); bp.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    // a fast flutter makes it sound like blades sliding over each other
+    const lfo = keep(actx.createOscillator()); lfo.frequency.value = 38; const lg = actx.createGain(); lg.gain.value = peak * 0.5;
+    lfo.connect(lg).connect(g.gain); lfo.start(at); lfo.stop(at + dur + 0.05);
+    src.connect(bp).connect(g).connect(sfxBus); src.start(at); src.stop(at + dur + 0.1);
+  }
+  function irisSound(at) {
+    const shut = at + IRIS.close / 1000, open = shut + IRIS.hold / 1000;
+    irisWhir(at, IRIS.close / 1000, 300, 1400, 0.22);
+    tone(shut - 0.01, { freq: 110, to: 42, peak: 0.55, attack: 0.002, decay: 0.28 });          // clunk as the blades lock
+    noiseHit(shut - 0.01, { type: 'lowpass', freq: 1400, q: 0.7, peak: 0.35, decay: 0.07 });
+    noiseHit(shut + 0.03, { type: 'bandpass', freq: 4200, q: 3, peak: 0.12, decay: 0.03 });  // small metallic tick
+    irisWhir(open, IRIS.open / 1000, 1300, 260, 0.16);
   }
   function pop(at) {
     const o = keep(actx.createOscillator()); o.type = 'sine';
@@ -1431,6 +1526,7 @@
       }
       if (seg.n === 3) { whoosh(t0 + seg.modelStart / 1000 - 0.45, 0.45); pop(t0 + seg.modelStart / 1000); }
     }
+    for (const T of TL.trans || []) irisSound(t0 + T / 1000);
     if (musicBuf) {
       const src = keep(actx.createBufferSource()); src.buffer = musicBuf;
       const g = actx.createGain(); const end = t0 + TL.total / 1000;
