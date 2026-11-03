@@ -422,7 +422,7 @@
     <div class="mcolors" id="meterColors"></div>
     <div class="row" style="justify-content:space-between">
       <button class="btn" id="addMeter" type="button" style="flex:0 0 auto">+ Add meter</button>
-      <button class="reset" id="matchColors" type="button" style="flex:0 0 auto">Match all to the line color</button>
+      <button class="reset" id="matchColors" type="button" style="flex:0 0 auto">Reset meter colors</button>
     </div>
   </fieldset>
 
@@ -824,7 +824,8 @@
     const blocks = new Set(lines.map(l => l.block)).size;
     return lines.length * size * 1.25 + Math.max(0, blocks - 1) * size * 1.1;
   };
-  const colorOf = st => (S.meterColors && S.meterColors[st.i]) || S.color;
+  const METER_COLOR = '#39ff6a';   // meters have their own colors; the Line color setting only changes the model
+  const colorOf = st => (S.meterColors && S.meterColors[st.i]) || METER_COLOR;
   function sweep(p, v) {
     if (reduce) return v;
     const up = 0.42, hold = 0.12;
@@ -1771,7 +1772,7 @@
   $('f-head').addEventListener('input', fitHead);
   function onSettingsChange(k) {
     if (k === 'head') fitHead();
-    if (k === 'color') { material.color.set(S.color); buildColorPickers(); }
+    if (k === 'color') material.color.set(S.color);
     if (k === 'sfx' || k === 'sfxVol' || k === 'musicVol') applyVolumes();
     if (k === 'format') setSize();
     if (k === 'view' || k === 'tilt') applyView();
