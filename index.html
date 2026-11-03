@@ -200,6 +200,11 @@
       <option value="none">None (straight cut)</option>
     </select>
     <div id="irisOpts">
+      <label>Where it plays</label>
+      <div class="row" style="gap:18px">
+        <label class="check" style="flex:0 0 auto;margin:0"><input type="checkbox" data-k="tAfter1"> After the title card</label>
+        <label class="check" style="flex:0 0 auto;margin:0"><input type="checkbox" data-k="tAfter2"> After the briefing</label>
+      </div>
       <label for="f-tsound">Sound</label>
       <select id="f-tsound" data-k="tsound">
         <option value="whir">Sound 1</option>
@@ -467,7 +472,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', zLines: 4, color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', tAfter1: true, tAfter2: true, tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -486,6 +491,8 @@
   if (!S.trans) S.trans = 'iris';
   if (typeof S.irisSpeed !== 'number') S.irisSpeed = 1;
   if (!S.tsound) S.tsound = 'whir';
+  if (typeof S.tAfter1 !== 'boolean') S.tAfter1 = true;
+  if (typeof S.tAfter2 !== 'boolean') S.tAfter2 = true;
   if (!S.irisC) S.irisC = '#4c5159';
   if (!S.irisE) S.irisE = '#c9d0d8';
   if (!Array.isArray(S.irisCols)) S.irisCols = [];
@@ -722,7 +729,12 @@
     }
     // between parts the iris closes over the old part, holds shut, then opens on the new one
     const trans = [];
-    const transGap = () => { if (S.trans === 'iris' && segs.length) { trans.push(t); t += IRIS.close + IRIS.hold; } };
+    const transGap = () => {
+      if (S.trans !== 'iris' || !segs.length) return;
+      const after = segs[segs.length - 1].n;   // the part the transition would follow
+      if ((after === 1 && !S.tAfter1) || (after === 2 && !S.tAfter2)) return;
+      trans.push(t); t += IRIS.close + IRIS.hold;
+    };
     if (S.s2on) {
       transGap();
       const clips = S.voice && isAIVoice() ? voiceClips() : null;
@@ -1716,7 +1728,7 @@
     if (!TL.segs.length) return 0;
     let s = TL.segs[0];
     if (panelOpen() && pvPart === 't') {
-      $('pvNote').textContent = TL.trans.length ? '' : (S.trans === 'none' ? 'Transition is off — pick Iris blades to see it.' : 'Turn on at least two parts to see the transition.');
+      $('pvNote').textContent = TL.trans.length ? '' : (S.trans === 'none' ? 'Transition is off — pick Iris blades to see it.' : TL.segs.length < 2 ? 'Turn on at least two parts to see the transition.' : 'Tick where the transition should play (after the title card or after the briefing).');
       if (TL.trans.length) return TL.trans[0] + IRIS.close * 0.62;
     }
     if (panelOpen() && pvPart !== 't') {
@@ -1897,7 +1909,7 @@
   // ▶ Play transition: plays just the first transition (a moment before, the blades, a moment after), with its sound
   function playTransition(b) {
     TL = buildTimeline();
-    if (!TL.trans.length) { status(S.trans === 'none' ? 'The transition is off. Pick Iris blades first.' : 'Turn on at least two parts to see the transition.', 3500); return; }
+    if (!TL.trans.length) { status(S.trans === 'none' ? 'The transition is off. Pick Iris blades first.' : TL.segs.length < 2 ? 'Turn on at least two parts to see the transition.' : 'Tick where the transition should play (after the title card or after the briefing).', 3500); return; }
     const T = TL.trans[0], from = Math.max(0, T - 500), to = T + IRIS.close + IRIS.hold + IRIS.open + 600;
     silence();
     const ac = audio(); unlockAudio();
