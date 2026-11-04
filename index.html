@@ -340,7 +340,12 @@
     <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal">▶ Play this part</button>
     <label for="f-head">Heading — each line on its own row</label>
     <textarea id="f-head" data-k="head" class="tbox"></textarea>
-    <label class="check"><input type="checkbox" data-k="headVoice"> Voice reads the briefing again on this page</label>
+    <div class="row" style="align-items:center;gap:14px;margin-top:6px">
+      <label class="check" style="margin:0;flex:0 0 auto" title="The voice reads the briefing text again while the model shows"><input type="checkbox" data-k="headVoice"> Voice reads the briefing</label>
+      <label class="check" style="margin:0;flex:0 0 auto" title="Acronym letters like B.O.B. light up as the voice says each word"><input type="checkbox" data-k="hlOn"> Light up letters</label>
+      <input id="f-hlc" type="color" data-k="hlColor" aria-label="Letter highlight color" style="flex:0 0 30px">
+      <div></div>
+    </div>
     <div class="row" style="align-items:flex-start">
       <div>
         <label for="f-file">Model file (.stl, .obj or .glb)</label>
@@ -487,7 +492,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', zLines: 4, color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, wireMode: 'auto', wireDensity: 28, headVoice: true, trans: 'iris', tAfter1: true, tAfter2: true, tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, wireMode: 'auto', wireDensity: 28, headVoice: true, hlOn: true, hlColor: '#39ff6a', trans: 'iris', tAfter1: true, tAfter2: true, tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -508,6 +513,8 @@
   if (!S.tsound) S.tsound = 'whir';
   if (!S.wireMode) S.wireMode = 'auto';
   if (typeof S.headVoice !== 'boolean') S.headVoice = true;
+  if (typeof S.hlOn !== 'boolean') S.hlOn = true;
+  if (!S.hlColor) S.hlColor = '#39ff6a';
   if (typeof S.wireDensity !== 'number') S.wireDensity = 28;
   if (typeof S.tAfter1 !== 'boolean') S.tAfter1 = true;
   if (typeof S.tAfter2 !== 'boolean') S.tAfter2 = true;
@@ -801,6 +808,26 @@
       if (S.title.trim()) lines.push({ text: titleText(), block: 1 });
       const seg = add(1, lines, 500, 350); seg.end = seg.typedEnd + hold; segs.push(seg); t = seg.end;
     }
+    // Light up the letters of an acronym line (e.g. "B.O.B.") as the voice says the words they stand for.
+    // Each spoken word whose first letter matches the next acronym letter lights that letter; if the words don't
+    // match up, each spoken line lights the next letter instead.
+    function markAcronym(seg) {
+      let line = null;
+      for (const l of seg.lines) if (/^\s*([A-Za-z0-9]\.\s*){2,}$/.test(l.text)) line = l;
+      if (!line) return;
+      const slots = []; [...line.text].forEach((ch, ci) => { if (/[A-Za-z0-9]/.test(ch)) slots.push({ ci, ch: ch.toLowerCase() }); });
+      const words = [];
+      for (const v of seg.voiceLines) {
+        const w = v.text.replace(/[^A-Za-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean);
+        w.forEach((word, j) => words.push({ ch: word[0].toLowerCase(), t: v.t0 + v.dur * j / w.length }));
+      }
+      const hl = []; let p = 0;
+      for (const w of words) { if (p < slots.length && w.ch === slots[p].ch) { hl.push({ ci: slots[p].ci, t: w.t }); p++; } }
+      if (p < slots.length) {   // words don't spell it out: one letter per spoken line
+        hl.length = 0; seg.voiceLines.slice(0, slots.length).forEach((v, k) => hl.push({ ci: slots[k].ci, t: v.t0 }));
+      }
+      line.hl = hl;
+    }
     // a part whose lines are read aloud: each line types for as long as it's spoken
     function voicedSeg(n, texts, clips, delay, voiced) {
       let seg;
@@ -856,16 +883,17 @@
       // the voice reads the briefing text again over the model page (e.g. the heading shows B.O.B., the voice says "big orange ball")
       if (headVoiced()) {
         const clips = isAIVoice() ? voiceClips() : null, bs = S.bspeed || 1;
-        let c = seg.start + 500; seg.voiceLines = [];
+        let c = seg.typedEnd + 250; seg.voiceLines = [];   // starts once the heading is on screen, so letters light up after they appear
         splitLines(S.brief).forEach((text, i) => {
           if (S.vtype === 'natural') {
             const say = lineSpeech(text).toLowerCase(); if (!say) return;
             const words = say.split(/\s+/).filter(Boolean).length;
             const dur = natTimes.get(natKey(say)) || Math.max(words * 330, text.length * 30) / bs;
-            seg.voiceLines.push({ t0: c, say }); c += dur + (/[-,.!?:;]\s*$/.test(text) ? 200 : 90) / bs;
-          } else if (clips && clips[i]) { seg.voiceLines.push({ t0: c, clip: clips[i] }); c += clips[i].duration * 1000 + 250 / bs; }
+            seg.voiceLines.push({ t0: c, say, dur, text }); c += dur + (/[-,.!?:;]\s*$/.test(text) ? 200 : 90) / bs;
+          } else if (clips && clips[i]) { seg.voiceLines.push({ t0: c, clip: clips[i], dur: clips[i].duration * 1000, text }); c += clips[i].duration * 1000 + 250 / bs; }
         });
         seg.voiceEnd = c;
+        if (S.hlOn) markAcronym(seg);
       }
       seg.modelStart = seg.typedEnd;
       seg.end = seg.modelStart + Math.max(S.turn * 1000, 4400) + 800;
@@ -902,7 +930,19 @@
       const x0 = (align === 'center' ? (W - fullW) / 2 : x ?? (W - widest) / 2) + (layout.dx || 0);
       let n = 0; for (const tt of l.times) if (tt <= t) n++;
       const shown = l.text.slice(0, n);
-      if (shown) ctx.fillText(shown, x0, baseline);
+      if (shown && l.hl && l.hl.length) {
+        const lit = new Map(l.hl.map(h => [h.ci, h.t]));
+        for (let ci = 0; ci < shown.length; ci++) {
+          const cx = x0 + ctx.measureText(shown.slice(0, ci)).width, ht = lit.get(ci);
+          if (ht != null && t >= ht) {
+            const age = (t - ht) / 1000, pop = reduce ? 0 : Math.max(0, 1 - age / 0.35);   // brief pop and glow right as it's said
+            ctx.save(); ctx.fillStyle = S.hlColor; ctx.shadowColor = S.hlColor; ctx.shadowBlur = size * (0.15 + 0.5 * pop);
+            const w = ctx.measureText(shown[ci]).width, sc = 1 + 0.25 * pop;
+            ctx.translate(cx + w / 2, baseline - size * 0.35); ctx.scale(sc, sc); ctx.fillText(shown[ci], -w / 2, size * 0.35);
+            ctx.restore();
+          } else ctx.fillText(shown[ci], cx, baseline);
+        }
+      } else if (shown) ctx.fillText(shown, x0, baseline);
       if (l === cursorLine && (reduce || Math.floor(t / 450) % 2 === 0 || n < l.text.length)) {
         const cx = x0 + ctx.measureText(shown).width + (shown ? size * 0.12 : 0);
         ctx.fillRect(cx, baseline + size * 0.08 - size * 0.78, size * 0.42, size * 0.78);
