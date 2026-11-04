@@ -340,7 +340,7 @@
     <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal">▶ Play this part</button>
     <label for="f-head">Heading — each line on its own row</label>
     <textarea id="f-head" data-k="head" class="tbox"></textarea>
-    <label class="check"><input type="checkbox" data-k="headVoice"> Voice reads the heading (same voice as the briefing)</label>
+    <label class="check"><input type="checkbox" data-k="headVoice"> Voice reads the briefing again on this page</label>
     <div class="row" style="align-items:flex-start">
       <div>
         <label for="f-file">Model file (.stl, .obj or .glb)</label>
@@ -852,10 +852,24 @@
     }
     if (S.s3on) {
       transGap();
-      const seg = headVoiced() ? voicedSeg(3, splitLines(S.head), isAIVoice() ? headClips() : null, 500, true)
-                               : add(3, splitLines(S.head).map(text => ({ text, block: 0 })), 500, 250);
+      const seg = add(3, splitLines(S.head).map(text => ({ text, block: 0 })), 500, 250);
+      // the voice reads the briefing text again over the model page (e.g. the heading shows B.O.B., the voice says "big orange ball")
+      if (headVoiced()) {
+        const clips = isAIVoice() ? voiceClips() : null, bs = S.bspeed || 1;
+        let c = seg.start + 500; seg.voiceLines = [];
+        splitLines(S.brief).forEach((text, i) => {
+          if (S.vtype === 'natural') {
+            const say = lineSpeech(text).toLowerCase(); if (!say) return;
+            const words = say.split(/\s+/).filter(Boolean).length;
+            const dur = natTimes.get(natKey(say)) || Math.max(words * 330, text.length * 30) / bs;
+            seg.voiceLines.push({ t0: c, say }); c += dur + (/[-,.!?:;]\s*$/.test(text) ? 200 : 90) / bs;
+          } else if (clips && clips[i]) { seg.voiceLines.push({ t0: c, clip: clips[i] }); c += clips[i].duration * 1000 + 250 / bs; }
+        });
+        seg.voiceEnd = c;
+      }
       seg.modelStart = seg.typedEnd;
       seg.end = seg.modelStart + Math.max(S.turn * 1000, 4400) + 800;
+      if (seg.voiceEnd) seg.end = Math.max(seg.end, seg.voiceEnd + 700);   // keep the model up until the voice finishes
       segs.push(seg); t = seg.end;
     }
     return { segs, total: t, trans };
@@ -1554,8 +1568,7 @@
   };
   const lineSpeech = l => l.replace(/\s+-\s*$/, '').replace(/\s+-\s+/g, ', ').trim();
   const headVoiced = () => S.voice && S.headVoice && S.s3on && S.vtype !== 'file';
-  const voiceKey = () => [S.vtype, S.vtype === 'human' ? S.hvoice + '/' + S.robo : S.rvoice, S.bspeed, S.brief, headVoiced() ? S.head : ''].join('|');
-  const headClips = () => voiceClips() ? voiceCache.hbufs : null;
+  const voiceKey = () => [S.vtype, S.vtype === 'human' ? S.hvoice + '/' + S.robo : S.rvoice, S.bspeed, S.brief].join('|');
   function voiceClips() {
     return voiceCache.key === voiceKey() && voiceCache.bufs ? voiceCache.bufs : null;
   }
@@ -1594,7 +1607,7 @@
     if (!S.voice || !isAIVoice() || !(S.s2on || headVoiced())) return true;
     // the briefing lines are always made (cheap once cached) so testing one part on its own finds them ready
     const nb = splitLines(S.brief).length;
-    const lines = [...splitLines(S.brief), ...(headVoiced() ? splitLines(S.head) : [])]; if (!lines.length) return true;
+    const lines = splitLines(S.brief); if (!lines.length) return true;
     const key = voiceKey();
     const ready = () => { const d = [...voiceCache.bufs, ...voiceCache.hbufs].reduce((n, b) => n + (b ? b.duration : 0), 0);
       hideVBar(); $('voiceNote').textContent = 'Voice ready (' + d.toFixed(1) + ' s). It records into the MP4.'; };
@@ -1783,6 +1796,12 @@
         voiceTimer = setTimeout(() => browserSpeak(text), Math.max(0, (t0 - actx.currentTime) * 1000 + seg.lines[0].t0));
       }
       if (seg.n === 3) { whoosh(t0 + seg.modelStart / 1000 - 0.45, 0.45); pop(t0 + seg.modelStart / 1000); }
+      if (seg.n === 3 && seg.voiceLines && S.voice) {
+        for (const v of seg.voiceLines) {
+          if (v.clip) speakAt(t0 + v.t0 / 1000, v.clip);
+          else if (v.say && window.speechSynthesis) voiceTimers.push(setTimeout(() => browserSpeak(v.say, true), Math.max(0, delayMs(v.t0) - natLag)));
+        }
+      }
     }
     for (const T of TL.trans || []) irisSound(t0 + T / 1000);
     if (musicBuf) {
