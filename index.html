@@ -339,9 +339,21 @@
     <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal">▶ Play this part</button>
     <label for="f-head">Heading — each line on its own row</label>
     <textarea id="f-head" data-k="head" class="tbox"></textarea>
-    <label for="f-file">Model file (.stl, .obj or .glb)</label>
-    <input id="f-file" type="file" accept=".stl,.obj,.glb">
-    <div class="file" id="fileName">Using placeholder cube</div>
+    <div class="row" style="align-items:flex-start">
+      <div>
+        <label for="f-file">Model file (.stl, .obj or .glb)</label>
+        <input id="f-file" type="file" accept=".stl,.obj,.glb" style="max-width:100%">
+        <div class="file" id="fileName">Using placeholder cube</div>
+      </div>
+      <div>
+        <label for="f-wire">Wireframe lines</label>
+        <select id="f-wire" data-k="wireMode">
+          <option value="auto">Auto</option>
+          <option value="lines">Contour lines</option>
+          <option value="all">Every triangle</option>
+        </select>
+      </div>
+    </div>
     <div class="row">
       <div>
         <label for="f-view">Starting view</label>
@@ -387,6 +399,7 @@
         <label for="f-spin">Full turn time</label>
         <input id="f-spin" type="range" min="3" max="15" step="0.5" data-k="turn">
       </div>
+      <div id="wireDensityBox"><label for="f-wired">Line count</label><input id="f-wired" type="range" min="8" max="70" step="1" data-k="wireDensity"></div>
       <div style="flex:0 0 auto">
         <label for="f-color">Line color</label>
         <input id="f-color" type="color" data-k="color">
@@ -472,7 +485,7 @@
     s1on: true, top: 'ayelit presents', label: 'operation:', title: 'gumzooka', dots: true,
     s2on: true, brief: 'warning -\nsticky\ngum\nlauncher -\nhandle\nwith\ncare.',
     s3on: true, head: 'model\nfile -\ng.u.m.z.o.o.k.a.', statsOn: true, meterColors: [], layout: 'group', pwX: 0, pwY: 0, grX: 0, grY: 0, stats: 'power: 85\nrange: 60\nstability: 72\naccuracy: 90\nspeed: 55', bg: 'grid', turn: 6, view: 'front', tilt: 20, mscale: 100, zones: true, z1: '#4fc3ff', z2: '#b06bff', z3: '#ff4fa3', zLines: 4, color: '#39ff6a',
-    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, trans: 'iris', tAfter1: true, tAfter2: true, tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
+    speed: 1, hold: 1.4, voice: true, vtype: 'natural', bspeed: 1, headV2: true, wireMode: 'auto', wireDensity: 28, trans: 'iris', tAfter1: true, tAfter2: true, tsound: 'whir', irisSpeed: 1, irisC: '#4c5159', irisE: '#c9d0d8', irisEach: false, irisCols: [], mX: 0, mY: 0, hX: 0, hY: 0, tX: 0, tY: 0, bX: 0, bY: 0, hvoice: 'af_heart', robo: 0, rvoice: 'classic', font: 'exo2',
     sfx: true, sfxVol: 0.7, musicVol: 0.6
   };
   let S = { ...DEFAULTS };
@@ -491,6 +504,8 @@
   if (!S.trans) S.trans = 'iris';
   if (typeof S.irisSpeed !== 'number') S.irisSpeed = 1;
   if (!S.tsound) S.tsound = 'whir';
+  if (!S.wireMode) S.wireMode = 'auto';
+  if (typeof S.wireDensity !== 'number') S.wireDensity = 28;
   if (typeof S.tAfter1 !== 'boolean') S.tAfter1 = true;
   if (typeof S.tAfter2 !== 'boolean') S.tAfter2 = true;
   if (!S.irisC) S.irisC = '#4c5159';
@@ -643,6 +658,7 @@
   applyView();
   // wireframe look: glowing lines over a dark fill that hides the back lines
   const material = new THREE.MeshBasicMaterial({ color: S.color, wireframe: true, transparent: true, opacity: 0.9 });
+  const lineMat = new THREE.LineBasicMaterial({ color: S.color, transparent: true, opacity: 0.95 });
   const fillMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
 
   function setSize() {
@@ -657,15 +673,70 @@
     model.position.y = visH * (W < H ? 0.14 : 0.1);
   }
 
+  // ---- wireframe drawing ----
+  // Simple models: every triangle edge. Detailed models (thousands of triangles) would turn solid that way,
+  // so they get evenly spaced contour lines (slices across the model) plus their sharp edges instead.
+  let curModel = null;
+  const triCount = m => { const g = m.geometry; return (g.index ? g.index.count : g.attributes.position.count) / 3; };
+  function applyWire() {
+    if (!curModel) return;
+    const { obj, meshes } = curModel;
+    if (curModel.lines) { obj.remove(curModel.lines); curModel.lines.geometry.dispose(); curModel.lines = null; }
+    meshes.forEach(m => { if (m.userData.wire) { m.remove(m.userData.wire); m.userData.wire = null; } });
+    const tris = meshes.reduce((n, m) => n + triCount(m), 0);
+    const simple = S.wireMode === 'all' || (S.wireMode === 'auto' && tris <= 6000);
+    const db = $('wireDensityBox'); if (db) db.hidden = simple;
+    if (simple) { meshes.forEach(m => { const w = new THREE.Mesh(m.geometry, material); m.add(w); m.userData.wire = w; }); markDirty(); return; }
+    obj.updateMatrixWorld(true);
+    const toObj = new THREE.Matrix4().copy(obj.matrixWorld).invert();
+    // gather every triangle in the model's own space (after any STL rotation)
+    const parts = meshes.map(m => {
+      const g = m.geometry, pos = g.attributes.position, idx = g.index, mat = new THREE.Matrix4().multiplyMatrices(toObj, m.matrixWorld);
+      const n = pos.count, P = new Float32Array(n * 3), v = new THREE.Vector3();
+      for (let i = 0; i < n; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(mat); P[i * 3] = v.x; P[i * 3 + 1] = v.y; P[i * 3 + 2] = v.z; }
+      return { P, I: idx ? idx.array : null, tris: idx ? idx.count / 3 : n / 3, g, mat };
+    });
+    const box = new THREE.Box3(); parts.forEach(pt => { for (let i = 0; i < pt.P.length; i += 3) box.expandByPoint(new THREE.Vector3(pt.P[i], pt.P[i + 1], pt.P[i + 2])); });
+    const lo = [box.min.x, box.min.y, box.min.z], hi = [box.max.x, box.max.y, box.max.z];
+    const out = [];
+    // contour slices: many across the height (Y), fewer across X and Z so it reads as a wire cage
+    const N = Math.max(4, Math.round(S.wireDensity || 28));
+    [[1, N], [0, Math.round(N * 0.55)], [2, Math.round(N * 0.55)]].forEach(([ax, count]) => {
+      const span = hi[ax] - lo[ax]; if (span <= 0 || count < 1) return;
+      const step = span / count, a1 = (ax + 1) % 3, a2 = (ax + 2) % 3;
+      for (const pt of parts) {
+        const { P, I } = pt, tri = pt.tris;
+        for (let t = 0; t < tri; t++) {
+          const i0 = (I ? I[t * 3] : t * 3) * 3, i1 = (I ? I[t * 3 + 1] : t * 3 + 1) * 3, i2 = (I ? I[t * 3 + 2] : t * 3 + 2) * 3;
+          const d0 = P[i0 + ax], d1 = P[i1 + ax], d2 = P[i2 + ax];
+          const mn = Math.min(d0, d1, d2), mx = Math.max(d0, d1, d2);
+          let k0 = Math.ceil((mn - lo[ax]) / step - 0.5), k1 = Math.floor((mx - lo[ax]) / step - 0.5);
+          for (let k = k0; k <= k1; k++) {
+            const c = lo[ax] + (k + 0.5) * step, hits = [];
+            const edge = (ia, da, ib, db) => { if ((da - c) * (db - c) < 0) { const f = (c - da) / (db - da); hits.push([P[ia] + (P[ib] - P[ia]) * f, P[ia + 1] + (P[ib + 1] - P[ia + 1]) * f, P[ia + 2] + (P[ib + 2] - P[ia + 2]) * f]); } };
+            edge(i0, d0, i1, d1); edge(i1, d1, i2, d2); edge(i2, d2, i0, d0);
+            if (hits.length === 2) out.push(...hits[0], ...hits[1]);
+          }
+        }
+      }
+    });
+    // sharp edges (corners, rims, seams) so hard details still show
+    for (const pt of parts) {
+      const eg = new THREE.EdgesGeometry(pt.g, 35), ep = eg.attributes.position, v = new THREE.Vector3();
+      for (let i = 0; i < ep.count; i++) { v.fromBufferAttribute(ep, i).applyMatrix4(pt.mat); out.push(v.x, v.y, v.z); }
+      eg.dispose();
+    }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+    curModel.lines = new THREE.LineSegments(lg, lineMat); obj.add(curModel.lines);
+    markDirty();
+  }
   function setModel(obj, keepMaterials) {
     markDirty();
     orient.clear();
     const meshes = []; obj.traverse(o => { if (o.isMesh) meshes.push(o); });
-    meshes.forEach(m => {
-      m.material = fillMat;
-      const wire = new THREE.Mesh(m.geometry, material);
-      m.add(wire);
-    });
+    meshes.forEach(m => { m.material = fillMat; });
+    curModel = { obj, meshes };
+    applyWire();
     const box = new THREE.Box3().setFromObject(obj);
     const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
     obj.position.sub(center);
@@ -1772,7 +1843,8 @@
   $('f-head').addEventListener('input', fitHead);
   function onSettingsChange(k) {
     if (k === 'head') fitHead();
-    if (k === 'color') material.color.set(S.color);
+    if (k === 'color') { material.color.set(S.color); lineMat.color.set(S.color); }
+    if (k === 'wireMode' || k === 'wireDensity') applyWire();
     if (k === 'sfx' || k === 'sfxVol' || k === 'musicVol') applyVolumes();
     if (k === 'format') setSize();
     if (k === 'view' || k === 'tilt') applyView();
