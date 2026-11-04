@@ -141,6 +141,7 @@
   .prow:hover, .prow:focus-within { border-color: var(--accent); }
   .prow .pn { color: var(--ui-text); font-weight: 600; } .prow .ps { color: var(--ui-muted); font-size: 12px; }
   .prow select { padding: 6px 8px; font-size: 13px; }
+  body.parts-tab #stage { cursor: crosshair; }
   .bladecols { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
   .bladecols label { margin: 0; display: grid; justify-items: center; gap: 2px; font-size: 11px; }
   .bladecols input[type=color] { width: 34px; height: 30px; flex: none; }
@@ -813,16 +814,24 @@
       name.querySelector('.pn').textContent = pt.small ? 'Small pieces' : 'Part ' + (i + 1);
       name.querySelector('.ps').textContent = pt.tris.toLocaleString() + ' triangles' + (pt.small ? ' (' + pt.items.length + ' pieces)' : '');
       const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Letter for part ' + (i + 1));
-      sel.add(new Option('— no letter —', ''));
+      sel.add(new Option('— off —', ''));
+      sel.add(new Option('Always lit', 'on'));
+      sel.add(new Option('Blinking', 'blink'));
       letters.forEach((ch, k) => sel.add(new Option('Letter ' + (k + 1) + ': ' + ch.toUpperCase(), String(k))));
-      sel.value = S.partMap[i] != null && S.partMap[i] < letters.length ? String(S.partMap[i]) : '';
-      sel.addEventListener('change', () => { if (sel.value === '') delete S.partMap[i]; else S.partMap[i] = +sel.value; save(); flash(i); });
+      const cur = S.partMap[i];
+      sel.value = cur === 'on' || cur === 'blink' ? cur : (typeof cur === 'number' && cur < letters.length ? String(cur) : '');
+      sel.addEventListener('change', () => {
+        const v = sel.value;
+        if (v === '') delete S.partMap[i]; else S.partMap[i] = (v === 'on' || v === 'blink') ? v : +v;
+        save(); flash(i);
+      });
+      row.dataset.part = i;
       const flash = k => { flashPart = k; flashUntil = performance.now() + 1400; markDirty(); };
       row.addEventListener('mouseenter', () => flash(i)); sel.addEventListener('focus', () => flash(i));
       row.append(name, sel); list.append(row);
     });
     if (parts.length === 1) $('partsHelp').textContent = 'This model is one solid piece, so it lights up as a whole. Models exported with separate bodies split into parts here.';
-    else $('partsHelp').textContent = 'While each acronym letter is read, the parts you pick for it glow in the letter highlight color. Point at a part to see it.';
+    else $('partsHelp').textContent = 'Click a part on the model (or point at a row) to find it. Pick a letter to make it glow while that letter is read, or Always lit / Blinking to glow on its own.';
   }
   // which parts glow at time t (during the model reveal)
   function updatePartGlow(t, seg) {
@@ -837,10 +846,35 @@
     }
     const flashing = performance.now() < flashUntil && panelOpen();
     curModel.parts.forEach((pt, i) => {
-      const on = flashing ? i === flashPart : (active >= 0 && S.partMap[i] === active);
+      const m = S.partMap[i];
+      const on = flashing ? i === flashPart
+        : m === 'on' ? true
+        : m === 'blink' ? (reduce || Math.floor(t / 400) % 2 === 0)
+        : (active >= 0 && m === active);
       pt.meshes.forEach(m => { m.visible = on; });
     });
   }
+  // clicking the preview while the Parts tab is open picks the part under the pointer
+  const ray = new THREE.Raycaster();
+  function partAt(ev) {
+    if (!curModel || !curModel.parts || !curModel.parts.length) return -1;
+    const r = canvas.getBoundingClientRect(), k = Math.min(r.width / W, r.height / H);
+    const ox = r.left + (r.width - W * k) / 2, oy = r.top + (r.height - H * k) / 2;
+    let px = (ev.clientX - ox) / k, py = (ev.clientY - oy) / k;
+    if (px < 0 || py < 0 || px > W || py > H) return -1;
+    px -= S.mX / 100 * W; py += S.mY / 100 * H;   // undo the model position sliders
+    ray.setFromCamera({ x: px / W * 2 - 1, y: -(py / H * 2 - 1) }, camera);
+    const all = []; curModel.parts.forEach((pt, i) => pt.meshes.forEach(m => { m.userData.partIndex = i; all.push(m); }));
+    const hit = ray.intersectObjects(all, false)[0];
+    return hit ? hit.object.userData.partIndex : -1;
+  }
+  canvas.addEventListener('click', ev => {
+    if (playing || !panelOpen() || !document.querySelector('fieldset.on[data-tab="parts"]')) return;
+    const i = partAt(ev); if (i < 0) return;
+    flashPart = i; flashUntil = performance.now() + 1600; markDirty();
+    const row = document.querySelector('.prow[data-part="' + i + '"]');
+    if (row) { row.scrollIntoView({ block: 'nearest' }); const sel = row.querySelector('select'); sel.focus(); }
+  });
   function setModel(obj, keepMaterials) {
     markDirty();
     orient.clear();
@@ -1997,6 +2031,7 @@
     const b = document.querySelector(`.tabs [data-tab="${t}"]`);
     if (b && b.dataset.pv) setPreview(+b.dataset.pv);
     if (t === 'trans') setPreview('t');
+    document.body.classList.toggle('parts-tab', t === 'parts');
     $('panel').scrollTop = 0;
     if (t === 'model') fitHead();
     if (t === 'brief') fitBox($('f-brief'), 166, 260);
