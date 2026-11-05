@@ -786,7 +786,7 @@
   let flashPart = -1, flashUntil = 0;
   function acroLetters() {   // letters of the acronym line in the model heading, in order
     const lines = splitLines(S.head); let line = null;
-    for (const l of lines) if (/^\s*([A-Za-z0-9]\.\s*){2,}$/.test(l)) line = l;
+    for (const l of lines) if (/^\s*[A-Za-z0-9](\.\s*[A-Za-z0-9])+\.?\s*$/.test(l)) line = l;
     return line ? [...line].filter(ch => /[A-Za-z0-9]/.test(ch)) : [];
   }
   function buildPartsUI() {
@@ -939,7 +939,7 @@
     // match up, each spoken line lights the next letter instead.
     function markAcronym(seg) {
       let line = null;
-      for (const l of seg.lines) if (/^\s*([A-Za-z0-9]\.\s*){2,}$/.test(l.text)) line = l;
+      for (const l of seg.lines) if (/^\s*[A-Za-z0-9](\.\s*[A-Za-z0-9])+\.?\s*$/.test(l.text)) line = l;
       if (!line) return;
       const slots = []; [...line.text].forEach((ch, ci) => { if (/[A-Za-z0-9]/.test(ch)) slots.push({ ci, ch: ch.toLowerCase() }); });
       const words = [];
@@ -956,7 +956,7 @@
       seg.slots = hl.map(h => h.t);   // when each letter (in order) starts being read
       // the acronym doesn't type out ahead of time: each letter appears (lit) right as its word is said,
       // and the dot after it comes in with it
-      if (hl.length) {
+      if (hl.length && !line.still) {
         const times = []; let k = 0;
         for (let c = 0; c < line.text.length; c++) {
           while (k + 1 < hl.length && hl[k + 1].ci <= c) k++;
@@ -1006,15 +1006,12 @@
     if (S.s3on) {
       transGap();
       const seg = add(3, splitLines(S.head).map(text => ({ text, block: 0 })), 500, 250);
+      // the model-page text is on screen the whole time (not typed out)
+      for (const l of seg.lines) { l.t0 = seg.start; l.times = l.times.map(() => seg.start); l.still = true; }
+      seg.typedEnd = seg.start + 400;
       // the voice reads the briefing text again over the model page (e.g. the heading shows B.O.B., the voice says "big orange ball")
       if (headVoiced()) {
         const clips = isAIVoice() ? voiceClips() : null, bs = S.bspeed || 1;
-        // with an acronym line that lights up as it's read, the reading starts right after the other heading lines finish typing
-        const acro = S.hlOn ? seg.lines.filter(l => /^\s*([A-Za-z0-9]\.\s*){2,}$/.test(l.text)).pop() : null;
-        if (acro) {
-          const others = seg.lines.filter(l => l !== acro && l.times.length);
-          seg.typedEnd = (others.length ? Math.max(...others.map(l => l.times[l.times.length - 1])) : seg.start + 300) + 120;
-        }
         let c = seg.typedEnd + 250; seg.voiceLines = [];
         splitLines(S.brief).forEach((text, i) => {
           if (S.vtype === 'natural') {
@@ -1077,7 +1074,7 @@
           } else ctx.fillText(shown[ci], cx, baseline);
         }
       } else if (shown) ctx.fillText(shown, x0, baseline);
-      if (l === cursorLine && (reduce || Math.floor(t / 450) % 2 === 0 || n < l.text.length)) {
+      if (l === cursorLine && !l.still && (reduce || Math.floor(t / 450) % 2 === 0 || n < l.text.length)) {
         const cx = x0 + ctx.measureText(shown).width + (shown ? size * 0.12 : 0);
         ctx.fillRect(cx, baseline + size * 0.08 - size * 0.78, size * 0.42, size * 0.78);
       }
@@ -1937,6 +1934,7 @@
       blip(t0 + (seg.start + 120) / 1000);
       const ks = keyset();
       for (const l of seg.lines) {
+        if (l.still) continue;   // text that's just on screen makes no typing sounds
         // soft readout blip as each letter appears
         l.text.split('').forEach((ch, i) => {
           if (ch === ' ') return;
