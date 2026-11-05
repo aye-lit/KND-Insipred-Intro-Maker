@@ -120,6 +120,8 @@
   .panel .mcolors { gap: 6px; }
   .panel .mrow .nm { padding: 4px 8px; }
   .panel textarea.tbox { min-height: 166px; }
+  .panel fieldset[data-tab="brief"] textarea.tbox { min-height: 72px; height: 72px; }
+  .panel fieldset[data-tab="brief"] label { margin: 6px 0 3px; }
   .panel fieldset[data-tab="model"] label { margin: 6px 0 3px; }   /* the Model tab has the most settings; keep it on one screen */   /* briefing and model heading boxes: same size, 7 lines */
   /* wide screens: preview on the left, settings in their own scrolling column on the right */
   @media (min-width: 900px) {
@@ -266,8 +268,20 @@
   </fieldset>
 
   <fieldset data-part="3" data-tab="brief">
-    <legend>Voice — read during the model reveal</legend>
+    <legend>Text &amp; voice — model reveal</legend>
     <button class="partplay" type="button" data-play="3" aria-label="Play the model reveal with the voice">▶ Play with model</button>
+    <label for="f-head">Text on screen — each line on its own row</label>
+    <textarea id="f-head" data-k="head" class="tbox"></textarea>
+    <div class="row" style="align-items:center;gap:14px;margin-top:6px">
+      <label class="check" style="margin:0;flex:0 0 auto" title="Acronym letters like B.O.B. light up as the voice says each word"><input type="checkbox" data-k="hlOn"> Light up letters</label>
+      <input id="f-hlc" type="color" data-k="hlColor" aria-label="Letter highlight color" style="flex:0 0 30px">
+      <div></div>
+    </div>
+    <div class="row">
+      <div><label for="f-hx">Text ← →</label><input id="f-hx" type="range" min="-45" max="45" step="1" data-k="hX"></div>
+      <div><label for="f-hy">Text ↑ ↓</label><input id="f-hy" type="range" min="-10" max="85" step="1" data-k="hY"></div>
+    </div>
+    <button class="reset" type="button" data-reset="hX,hY">Reset text position</button>
     <label for="f-brief">What the voice says — one word or phrase per line (e.g. big / orange / ball for B.O.B.)</label>
     <textarea id="f-brief" data-k="brief" class="tbox"></textarea>
     <label class="check"><input type="checkbox" data-k="voice"> Use a voice</label>
@@ -336,13 +350,6 @@
   <fieldset data-part="3" data-tab="model">
     <legend><input type="checkbox" data-k="s3on" aria-label="Include model reveal"> 2 · Model reveal</legend>
     <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal">▶ Play this part</button>
-    <label for="f-head">Heading — each line on its own row</label>
-    <textarea id="f-head" data-k="head" class="tbox"></textarea>
-    <div class="row" style="align-items:center;gap:14px;margin-top:6px">
-      <label class="check" style="margin:0;flex:0 0 auto" title="Acronym letters like B.O.B. light up as the voice says each word"><input type="checkbox" data-k="hlOn"> Light up letters</label>
-      <input id="f-hlc" type="color" data-k="hlColor" aria-label="Letter highlight color" style="flex:0 0 30px">
-      <div></div>
-    </div>
     <div class="row" style="align-items:flex-start">
       <div>
         <label for="f-file">Model file (.stl, .obj or .glb)</label>
@@ -393,11 +400,7 @@
       <div><label for="f-mx">Model ← →</label><input id="f-mx" type="range" min="-45" max="45" step="1" data-k="mX"></div>
       <div><label for="f-my">Model ↑ ↓</label><input id="f-my" type="range" min="-45" max="45" step="1" data-k="mY"></div>
     </div>
-    <div class="row">
-      <div><label for="f-hx">Heading text ← →</label><input id="f-hx" type="range" min="-45" max="45" step="1" data-k="hX"></div>
-      <div><label for="f-hy">Heading text ↑ ↓</label><input id="f-hy" type="range" min="-10" max="85" step="1" data-k="hY"></div>
-    </div>
-    <button class="reset" id="resetModelPos" type="button">Reset model and text positions</button>
+    <button class="reset" type="button" data-reset="mX,mY">Reset model position</button>
     <div class="row">
       <div>
         <label for="f-spin">Full turn time</label>
@@ -591,10 +594,6 @@
   $('matchBlades').addEventListener('click', () => { S.irisCols = []; save(); buildBladeCols(); markDirty(); });
   $('tfileRow').hidden = S.tsound !== 'file';
   $('partsClear').addEventListener('click', () => { S.partMap = {}; save(); buildPartsUI(); markDirty(); });
-  $('resetModelPos').addEventListener('click', () => {
-    for (const k of ['mX','mY','hX','hY']) S[k] = 0;
-    save(); document.querySelectorAll('[data-k]').forEach(el => el._set()); markDirty();
-  });
   $('resetPos').addEventListener('click', () => {
     for (const k of ['pwX','pwY','grX','grY']) S[k] = 0;
     save(); document.querySelectorAll('[data-k]').forEach(el => el._set());
