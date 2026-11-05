@@ -966,6 +966,16 @@
       }
       line.hl = hl;
       seg.slots = hl.map(h => h.t);   // when each letter (in order) starts being read
+      // the acronym doesn't type out ahead of time: each letter appears (lit) right as its word is said,
+      // and the dot after it comes in with it
+      if (hl.length) {
+        const times = []; let k = 0;
+        for (let c = 0; c < line.text.length; c++) {
+          while (k + 1 < hl.length && hl[k + 1].ci <= c) k++;
+          times.push(hl[k].t);
+        }
+        line.times = times;
+      }
     }
     // a part whose lines are read aloud: each line types for as long as it's spoken
     function voicedSeg(n, texts, clips, delay, voiced) {
@@ -1022,7 +1032,13 @@
       // the voice reads the briefing text again over the model page (e.g. the heading shows B.O.B., the voice says "big orange ball")
       if (headVoiced()) {
         const clips = isAIVoice() ? voiceClips() : null, bs = S.bspeed || 1;
-        let c = seg.typedEnd + 250; seg.voiceLines = [];   // starts once the heading is on screen, so letters light up after they appear
+        // with an acronym line that lights up as it's read, the reading starts right after the other heading lines finish typing
+        const acro = S.hlOn ? seg.lines.filter(l => /^\s*([A-Za-z0-9]\.\s*){2,}$/.test(l.text)).pop() : null;
+        if (acro) {
+          const others = seg.lines.filter(l => l !== acro && l.times.length);
+          seg.typedEnd = (others.length ? Math.max(...others.map(l => l.times[l.times.length - 1])) : seg.start + 300) + 120;
+        }
+        let c = seg.typedEnd + 250; seg.voiceLines = [];
         splitLines(S.brief).forEach((text, i) => {
           if (S.vtype === 'natural') {
             const say = lineSpeech(text).toLowerCase(); if (!say) return;
