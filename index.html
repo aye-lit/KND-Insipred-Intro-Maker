@@ -935,22 +935,25 @@
       const seg = add(1, lines, 500, 350); seg.end = seg.typedEnd + hold; segs.push(seg); t = seg.end;
     }
     // Light up the letters of an acronym line (e.g. "B.O.B.") as the voice says the words they stand for.
-    // Each spoken word whose first letter matches the next acronym letter lights that letter; if the words don't
-    // match up, each spoken line lights the next letter instead.
+    // Each spoken line lights the next acronym letter (B.O.B. + big / orange / ball); with fewer lines than letters,
+    // each spoken word does instead.
     function markAcronym(seg) {
       let line = null;
       for (const l of seg.lines) if (/^\s*[A-Za-z0-9](\.\s*[A-Za-z0-9])+\.?\s*$/.test(l.text)) line = l;
       if (!line) return;
       const slots = []; [...line.text].forEach((ch, ci) => { if (/[A-Za-z0-9]/.test(ch)) slots.push({ ci, ch: ch.toLowerCase() }); });
-      const words = [];
-      for (const v of seg.voiceLines) {
-        const w = v.text.replace(/[^A-Za-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean);
-        w.forEach((word, j) => words.push({ ch: word[0].toLowerCase(), t: v.t0 + v.dur * j / w.length }));
-      }
-      const hl = []; let p = 0;
-      for (const w of words) { if (p < slots.length && w.ch === slots[p].ch) { hl.push({ ci: slots[p].ci, t: w.t }); p++; } }
-      if (p < slots.length) {   // words don't spell it out: one letter per spoken line
-        hl.length = 0; seg.voiceLines.slice(0, slots.length).forEach((v, k) => hl.push({ ci: slots[k].ci, t: v.t0 }));
+      const hl = [];
+      if (seg.voiceLines.length >= slots.length) {
+        // one line per letter: line 1 lights letter 1, line 2 lights letter 2, ... right as each line is read
+        slots.forEach((sl, k) => hl.push({ ci: sl.ci, t: seg.voiceLines[k].t0 }));
+      } else {
+        // fewer lines than letters (e.g. "big orange ball" on one line): each spoken word lights the next letter
+        const words = [];
+        for (const v of seg.voiceLines) {
+          const w = v.text.replace(/[^A-Za-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean);
+          w.forEach((word, j) => words.push(v.t0 + v.dur * j / w.length));
+        }
+        slots.slice(0, words.length).forEach((sl, k) => hl.push({ ci: sl.ci, t: words[k] }));
       }
       line.hl = hl;
       seg.slots = hl.map(h => h.t);   // when each letter (in order) starts being read
