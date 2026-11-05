@@ -181,7 +181,7 @@
     <canvas id="mini" aria-label="Live preview of your changes"></canvas>
     <div class="tabs" role="group" aria-label="Preview part">
       <button type="button" data-tab="title" data-pv="1" aria-pressed="true">Title</button>
-      <button type="button" data-tab="brief" data-pv="2" aria-pressed="false">Briefing</button>
+      <button type="button" data-tab="brief" data-pv="3" aria-pressed="false">Voice</button>
       <button type="button" data-tab="model" data-pv="3" aria-pressed="false">Model</button>
       <button type="button" data-tab="parts" data-pv="3" aria-pressed="false">Parts</button>
       <button type="button" data-tab="meters" data-pv="3" aria-pressed="false">Meters</button>
@@ -209,11 +209,6 @@
       <option value="none">None (straight cut)</option>
     </select>
     <div id="irisOpts">
-      <label>Where it plays</label>
-      <div class="row" style="gap:18px">
-        <label class="check" style="flex:0 0 auto;margin:0"><input type="checkbox" data-k="tAfter1"> After the title card</label>
-        <label class="check" style="flex:0 0 auto;margin:0"><input type="checkbox" data-k="tAfter2"> After the briefing</label>
-      </div>
       <label for="f-tsound">Sound</label>
       <select id="f-tsound" data-k="tsound">
         <option value="whir">Sound 1</option>
@@ -270,17 +265,12 @@
     <button class="reset" type="button" data-reset="tX,tY">Reset text position</button>
   </fieldset>
 
-  <fieldset data-part="2" data-tab="brief">
-    <legend><input type="checkbox" data-k="s2on" aria-label="Include briefing"> 2 · Briefing</legend>
-    <button class="partplay" type="button" data-play="2" aria-label="Play just the briefing">▶ Play this part</button>
-    <label for="f-brief">Text — each line types on its own row</label>
+  <fieldset data-part="3" data-tab="brief">
+    <legend>Voice — read during the model reveal</legend>
+    <button class="partplay" type="button" data-play="3" aria-label="Play the model reveal with the voice">▶ Play with model</button>
+    <label for="f-brief">What the voice says — one word or phrase per line (e.g. big / orange / ball for B.O.B.)</label>
     <textarea id="f-brief" data-k="brief" class="tbox"></textarea>
-    <div class="row">
-      <div><label for="f-bx">Text ← →</label><input id="f-bx" type="range" min="-45" max="45" step="1" data-k="bX"></div>
-      <div><label for="f-by">Text ↑ ↓</label><input id="f-by" type="range" min="-45" max="45" step="1" data-k="bY"></div>
-    </div>
-    <button class="reset" type="button" data-reset="bX,bY">Reset text position</button>
-    <label class="check"><input type="checkbox" data-k="voice"> A voice reads the briefing</label>
+    <label class="check"><input type="checkbox" data-k="voice"> Use a voice</label>
     <div class="row">
     <div>
     <label for="f-vtype">Voice</label>
@@ -344,12 +334,11 @@
   </fieldset>
 
   <fieldset data-part="3" data-tab="model">
-    <legend><input type="checkbox" data-k="s3on" aria-label="Include model reveal"> 3 · Model reveal</legend>
+    <legend><input type="checkbox" data-k="s3on" aria-label="Include model reveal"> 2 · Model reveal</legend>
     <button class="partplay" type="button" data-play="3" aria-label="Play just the model reveal">▶ Play this part</button>
     <label for="f-head">Heading — each line on its own row</label>
     <textarea id="f-head" data-k="head" class="tbox"></textarea>
     <div class="row" style="align-items:center;gap:14px;margin-top:6px">
-      <label class="check" style="margin:0;flex:0 0 auto" title="The voice reads the briefing text again while the model shows"><input type="checkbox" data-k="headVoice"> Voice reads the briefing</label>
       <label class="check" style="margin:0;flex:0 0 auto" title="Acronym letters like B.O.B. light up as the voice says each word"><input type="checkbox" data-k="hlOn"> Light up letters</label>
       <input id="f-hlc" type="color" data-k="hlColor" aria-label="Letter highlight color" style="flex:0 0 30px">
       <div></div>
@@ -1010,22 +999,11 @@
     }
     // between parts the iris closes over the old part, holds shut, then opens on the new one
     const trans = [];
-    const transGap = () => {
+    const transGap = () => {   // between the title card and the model reveal
       if (S.trans !== 'iris' || !segs.length) return;
-      const after = segs[segs.length - 1].n;   // the part the transition would follow
-      if ((after === 1 && !S.tAfter1) || (after === 2 && !S.tAfter2)) return;
       trans.push(t); t += IRIS.close + IRIS.hold;
     };
-    if (S.s2on) {
-      transGap();
-      const seg = voicedSeg(2, splitLines(S.brief), S.voice && isAIVoice() ? voiceClips() : null, 400, S.voice);
-      seg.end = seg.typedEnd + hold;
-      if (S.voice && S.vtype === 'file' && voiceFileBuf && seg.lines.length) {
-        seg.fileAt = seg.lines[0].t0;
-        seg.end = Math.max(seg.end, seg.fileAt + voiceFileBuf.duration * 1000 + 700);
-      }
-      segs.push(seg); t = seg.end;
-    }
+    // (the briefing is no longer its own screen: its text is what the voice reads during the model reveal)
     if (S.s3on) {
       transGap();
       const seg = add(3, splitLines(S.head).map(text => ({ text, block: 0 })), 500, 250);
@@ -1050,6 +1028,8 @@
         seg.voiceEnd = c;
         if (S.hlOn) markAcronym(seg);
       }
+      // your own voice-over plays over the model reveal too
+      if (S.voice && S.vtype === 'file' && voiceFileBuf) { seg.fileAt = seg.typedEnd + 250; seg.voiceEnd = seg.fileAt + voiceFileBuf.duration * 1000; }
       seg.modelStart = seg.typedEnd;
       seg.end = seg.modelStart + Math.max(S.turn * 1000, 4400) + 800;
       if (seg.voiceEnd) seg.end = Math.max(seg.end, seg.voiceEnd + 700);   // keep the model up until the voice finishes
@@ -1763,7 +1743,7 @@
     tiny:      { sam: () => ({ speed: 70, pitch: 30, throat: 190, mouth: 190 }), fx: (x, sr) => FX.flanger(x, sr, 1.5, 2.5, 0.6, 0.75) }
   };
   const lineSpeech = l => l.replace(/\s+-\s*$/, '').replace(/\s+-\s+/g, ', ').trim();
-  const headVoiced = () => S.voice && S.headVoice && S.s3on && S.vtype !== 'file';
+  const headVoiced = () => S.voice && S.s3on && S.vtype !== 'file';
   const voiceKey = () => [S.vtype, S.vtype === 'human' ? S.hvoice + '/' + S.robo : S.rvoice, S.bspeed, S.brief].join('|');
   function voiceClips() {
     return voiceCache.key === voiceKey() && voiceCache.bufs ? voiceCache.bufs : null;
@@ -1790,7 +1770,7 @@
   }
   function hideVBar() { $('vbar').hidden = true; $('vbar').firstElementChild.style.width = '0'; }
   async function waitForVoice() {
-    if (!S.voice || !(S.s2on || headVoiced()) || !isAIVoice() || voiceClips()) return prepareVoice();
+    if (!S.voice || !headVoiced() || !isAIVoice() || voiceClips()) return prepareVoice();
     voiceWaiting = true;
     status('Getting the voice ready…');
     try { return await prepareVoice(); } finally { voiceWaiting = false; hideStatus(); }
@@ -1800,7 +1780,7 @@
   function cacheLine(k, buf) { lineCache.set(k, buf); if (lineCache.size > 300) lineCache.delete(lineCache.keys().next().value); }
   let preparing = null;
   async function prepareVoice() {
-    if (!S.voice || !isAIVoice() || !(S.s2on || headVoiced())) return true;
+    if (!S.voice || !isAIVoice() || !headVoiced()) return true;
     // the briefing lines are always made (cheap once cached) so testing one part on its own finds them ready
     const nb = splitLines(S.brief).length;
     const lines = splitLines(S.brief); if (!lines.length) return true;
@@ -1886,7 +1866,7 @@
   }
   // get the voice ready in the background after edits so Play starts right away
   let prepTimer = null;
-  function prepSoon() { clearTimeout(prepTimer); prepTimer = setTimeout(() => { if (S.voice && (S.s2on || headVoiced()) && isAIVoice()) prepareVoice(); }, 900); }
+  function prepSoon() { clearTimeout(prepTimer); prepTimer = setTimeout(() => { if (headVoiced() && isAIVoice()) prepareVoice(); }, 900); }
   let voiceFallback = false, voiceTimer = null, voiceTimers = [], voiceFileBuf = null;
   function pickNaturalVoice() {
     const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
@@ -1982,7 +1962,7 @@
         try { speechSynthesis.cancel(); } catch (e) {}
         for (const l of seg.lines) if (l.say) voiceTimers.push(setTimeout(() => browserSpeak(l.say, true), Math.max(0, delayMs(l.t0) - natLag)));
       }
-      else if (seg.n === 2 && S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
+      else if (S.voice && S.vtype === 'file' && voiceFileBuf && seg.fileAt != null) {
         const src = keep(actx.createBufferSource()); src.buffer = voiceFileBuf; src.connect(master); src.start(t0 + seg.fileAt / 1000);
       }
       else if ((seg.n === 2 || seg.voiced) && S.voice && isAIVoice() && voiceClips()) { for (const l of seg.lines) if (l.clip) speakAt(t0 + l.t0 / 1000, l.clip); }
@@ -2024,7 +2004,7 @@
     if (!TL.segs.length) return 0;
     let s = TL.segs[0];
     if (panelOpen() && pvPart === 't') {
-      $('pvNote').textContent = TL.trans.length ? '' : (S.trans === 'none' ? 'Transition is off — pick Iris blades to see it.' : TL.segs.length < 2 ? 'Turn on at least two parts to see the transition.' : 'Tick where the transition should play (after the title card or after the briefing).');
+      $('pvNote').textContent = TL.trans.length ? '' : (S.trans === 'none' ? 'Transition is off — pick Iris blades to see it.' : 'Turn on both the title card and the model reveal to see the transition.');
       if (TL.trans.length) return TL.trans[0] + IRIS.close * 0.62;
     }
     if (panelOpen() && pvPart !== 't') {
@@ -2208,7 +2188,7 @@
   // ▶ Play transition: plays just the first transition (a moment before, the blades, a moment after), with its sound
   function playTransition(b) {
     TL = buildTimeline();
-    if (!TL.trans.length) { status(S.trans === 'none' ? 'The transition is off. Pick Iris blades first.' : TL.segs.length < 2 ? 'Turn on at least two parts to see the transition.' : 'Tick where the transition should play (after the title card or after the briefing).', 3500); return; }
+    if (!TL.trans.length) { status(S.trans === 'none' ? 'The transition is off. Pick Iris blades first.' : 'Turn on both the title card and the model reveal to see the transition.', 3500); return; }
     const T = TL.trans[0], from = Math.max(0, T - 500), to = T + IRIS.close + IRIS.hold + IRIS.open + 600;
     silence();
     const ac = audio(); unlockAudio();
