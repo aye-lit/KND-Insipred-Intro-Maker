@@ -827,7 +827,7 @@
       const flash = k => { flashPart = k; flashUntil = performance.now() + 1400; markDirty(); };
       row.addEventListener('mouseenter', () => flash(i)); sel.addEventListener('focus', () => flash(i));
       const tg = document.createElement('button'); tg.type = 'button'; tg.className = 'tgt'; tg.textContent = '◎';
-      tg.title = 'Target circle on this part the whole time'; tg.setAttribute('aria-label', 'Target circle on part ' + (i + 1));
+      tg.title = 'Target circle on this part for a few seconds when the model appears'; tg.setAttribute('aria-label', 'Target circle on part ' + (i + 1));
       tg.setAttribute('aria-pressed', S.partTgt[i] ? 'true' : 'false');
       tg.addEventListener('click', () => { if (S.partTgt[i]) delete S.partTgt[i]; else S.partTgt[i] = 1; tg.setAttribute('aria-pressed', S.partTgt[i] ? 'true' : 'false'); save(); flash(i); });
       tg.addEventListener('focus', () => flash(i));
@@ -835,7 +835,7 @@
     });
     document.documentElement.style.setProperty('--tgt', S.tgtColor);
     if (parts.length === 1) $('partsHelp').textContent = 'This model is one solid piece, so it lights up as a whole. Models exported with separate bodies split into parts here.';
-    else $('partsHelp').textContent = 'Click a part on the model (or point at a row) to find it. Pick a letter to make it glow while that letter is read, or Always lit / Blinking. ◎ keeps a target circle on that part.';
+    else $('partsHelp').textContent = 'Click a part on the model (or point at a row) to find it. Pick a letter to make it glow while that letter is read, or Always lit / Blinking. ◎ puts a target circle on that part when the model appears.';
   }
   // which parts glow at time t (during the model reveal)
   function updatePartGlow(t, seg) {
@@ -874,11 +874,13 @@
     }
     return n ? { x: x / n + S.mX / 100 * W, y: y / n - S.mY / 100 * H, r } : null;
   }
+  const TGT_MS = 2500;   // how long a target circle stays on
   function drawReticle(x, y, r, age, t) {
     const lock = reduce ? 1 : Math.min(age / 260, 1), e = 1 - Math.pow(1 - lock, 3);
+    const fade = Math.min(1, Math.max(0, (TGT_MS - age) / 400));   // fades out over the last 0.4 s
     r = Math.min(Math.max(r * 1.1, H * 0.045), H * 0.28) * (1 + 0.9 * (1 - e));   // starts wide and snaps in
     const lw = Math.max(2, H * 0.0035), spin = reduce ? 0 : t / 2400;
-    ctx.save(); ctx.globalAlpha = 0.35 + 0.65 * e; ctx.strokeStyle = S.tgtColor; ctx.lineWidth = lw;
+    ctx.save(); ctx.globalAlpha = (0.35 + 0.65 * e) * fade; ctx.strokeStyle = S.tgtColor; ctx.lineWidth = lw;
     ctx.shadowColor = S.tgtColor; ctx.shadowBlur = lw * 3;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
     for (let k = 0; k < 4; k++) {   // four tick marks that slowly turn
@@ -895,7 +897,7 @@
       let since = null;
       if (S.partTgt[i]) since = seg.modelStart + 500;
       else if (S.tgtFollow && active >= 0 && S.partMap[i] === active) since = seg.slots[active];
-      if (since == null || t < since) return;
+      if (since == null || t < since || t - since > TGT_MS) return;   // on for a few seconds, then gone
       const p = partScreen(pt); if (p) drawReticle(p.x, p.y, p.r, t - since, t);
     });
   }
