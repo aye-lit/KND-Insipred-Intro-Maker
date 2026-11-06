@@ -1007,17 +1007,17 @@
       const hl = [];
       if (seg.voiceLines.length >= slots.length) {
         // one line per letter: line 1 lights letter 1, line 2 lights letter 2, ... right as each line is read
-        slots.forEach((sl, k) => hl.push({ ci: sl.ci, t: seg.voiceLines[k].t0 }));
+        slots.forEach((sl, k) => hl.push({ ci: sl.ci, t: seg.voiceLines[k].t0, vi: k, frac: 0 }));
       } else {
         // fewer lines than letters (e.g. "big orange ball" on one line): each spoken word lights the next letter
         const words = [];
         for (const v of seg.voiceLines) {
           const w = v.text.replace(/[^A-Za-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean);
-          w.forEach((word, j) => words.push(v.t0 + v.dur * j / w.length));
+          w.forEach((word, j) => words.push({ t: v.t0 + v.dur * j / w.length, vi: seg.voiceLines.indexOf(v), frac: j / w.length }));
         }
-        slots.slice(0, words.length).forEach((sl, k) => hl.push({ ci: sl.ci, t: words[k] }));
+        slots.slice(0, words.length).forEach((sl, k) => hl.push({ ci: sl.ci, t: words[k].t, vi: words[k].vi, frac: words[k].frac }));
       }
-      line.hl = hl;
+      line.hl = hl; seg.hlLine = line;
       seg.slots = hl.map(h => h.t);   // when each letter (in order) starts being read
       // the acronym doesn't type out ahead of time: each letter appears (lit) right as its word is said,
       // and the dot after it comes in with it
@@ -1942,14 +1942,14 @@
   const natTimes = new Map(); let natLag = 120;
   const natRate = () => Math.min(4, 1.1 * (S.bspeed || 1));
   function natKey(text) { const v = pickNaturalVoice(); return (v ? v.name : '') + '|' + natRate().toFixed(2) + '|' + text; }
-  function browserSpeak(text, queue) {
+  function browserSpeak(text, queue, onBegin) {
     try {
       if (!queue) speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.rate = natRate(); u.pitch = 1.05; u.volume = 1;
       const v = pickNaturalVoice(); if (v) u.voice = v;
       const key = natKey(text), asked = performance.now(), wasIdle = !speechSynthesis.speaking; let began = 0;
-      u.onstart = () => { began = performance.now(); if (wasIdle) natLag = natLag * 0.6 + Math.min(600, began - asked) * 0.4; };
+      u.onstart = () => { began = performance.now(); if (onBegin) try { onBegin(began); } catch (e) {} if (wasIdle) natLag = natLag * 0.6 + Math.min(600, began - asked) * 0.4; };
       u.onend = () => {
         if (!began) return;
         const ms = performance.now() - began;
@@ -2036,9 +2036,21 @@
       }
       if (seg.n === 3) { whoosh(t0 + seg.modelStart / 1000 - 0.45, 0.45); pop(t0 + seg.modelStart / 1000); }
       if (seg.n === 3 && seg.voiceLines && S.voice) {
-        for (const v of seg.voiceLines) {
+        const live = seg.hlLine && seg.voiceLines.some(v => v.say) && window.speechSynthesis;
+        if (live) for (const h of seg.hlLine.hl) h.t = Infinity;   // wait for the real speech (its timing isn't known until it talks)
+        seg.voiceLines.forEach((v, vi) => {
           if (v.clip) speakAt(t0 + v.t0 / 1000, v.clip);
-          else if (v.say && window.speechSynthesis) voiceTimers.push(setTimeout(() => browserSpeak(v.say, true), Math.max(0, delayMs(v.t0) - natLag)));
+          else if (v.say && window.speechSynthesis) voiceTimers.push(setTimeout(() => browserSpeak(v.say, true, at => {
+            if (!live) return;
+            const now = at - playStart, next = seg.voiceLines[vi + 1], dur = natTimes.get(natKey(v.say)) || v.dur;
+            for (const h of seg.hlLine.hl) if (h.vi === vi) h.t = now + dur * h.frac;
+            seg.slots = seg.hlLine.hl.map(h => h.t);
+            if (!next && now + dur + 700 > seg.end) { seg.end = now + dur + 700; if (TL.segs.includes(seg)) TL.total = Math.max(TL.total, seg.end); }   // keep the model up until it finishes talking
+          }), Math.max(0, delayMs(v.t0) - natLag)));
+        });
+        if (live) {   // if the browser never starts talking, fall back to the planned times
+          const plan = seg.hlLine.hl.map(h => seg.voiceLines[h.vi].t0 + seg.voiceLines[h.vi].dur * h.frac);
+          voiceTimers.push(setTimeout(() => seg.hlLine.hl.forEach((h, k) => { if (h.t === Infinity) h.t = plan[k]; seg.slots = seg.hlLine.hl.map(h => h.t); }), Math.max(0, delayMs(seg.voiceEnd)) + 1500));
         }
       }
     }
@@ -2174,10 +2186,13 @@
     TL = part ? partTimeline(part) : buildTimeline();
     silence();
     const ac = audio();
-    const lead = 0.08;
-    if (ac) { if (ac.state === 'suspended') ac.resume(); scheduleSound(ac.currentTime + lead); }
-    playStart = performance.now() + lead * 1000;
-    playing = true;
+    const go = () => {
+      const lead = 0.12, lat = ac ? (ac.outputLatency || ac.baseLatency || 0) : 0;
+      if (ac) scheduleSound(ac.currentTime + lead);
+      playStart = performance.now() + (lead + lat) * 1000;
+      playing = true;
+    };
+    if (ac && ac.state !== 'running') ac.resume().then(go, go); else go();
     onDone = () => { document.body.classList.remove('hidden-ui'); if (part) TL = buildTimeline(); idleT = idleTime(); done && done(); };
   }
   function stop() {
@@ -2255,10 +2270,13 @@
     const T = TL.trans[0], from = Math.max(0, T - 500), to = T + IRIS.close + IRIS.hold + IRIS.open + 600;
     silence();
     const ac = audio(); unlockAudio();
-    const lead = 0.08;
-    if (ac) { if (ac.state === 'suspended') ac.resume(); irisSound(ac.currentTime + lead + (T - from) / 1000); }
-    playStart = performance.now() + lead * 1000 - from; playEnd = to;
-    playing = true;
+    const go = () => {
+      const lead = 0.12, lat = ac ? (ac.outputLatency || ac.baseLatency || 0) : 0;
+      if (ac) irisSound(ac.currentTime + lead + (T - from) / 1000);
+      playStart = performance.now() + (lead + lat) * 1000 - from; playEnd = to;
+      playing = true;
+    };
+    if (ac && ac.state !== 'running') ac.resume().then(go, go); else go();
     b.setAttribute('aria-pressed', 'true'); b.textContent = '■ Stop';
     onDone = () => { b.setAttribute('aria-pressed', 'false'); b.textContent = b.dataset.label; idleT = idleTime(); };
   }
